@@ -56,7 +56,6 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = [
     "https://adithyawijewickrama.github.io",
     "http://localhost:3000",
-
 ]
 
 ROOT_URLCONF = 'geophone_project.urls'
