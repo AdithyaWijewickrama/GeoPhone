@@ -4,11 +4,21 @@ export const mergeEvents = (blocks, threshold) => {
     for (let i = 0; i < blocks.length; i++) {
         let b = blocks[i];
         if (b.score >= threshold) {
-            if (!cur) cur = { startTime: b.time, endTime: b.time, startIdx: b.s, endIdx: b.e, peakScore: b.score, peakBlock: b };
+            if (!cur) cur = {
+                startTime: b.time,
+                endTime: b.time,
+                startIdx: b.s,
+                endIdx: b.e,
+                peakScore: b.score,
+                peakBlock: b
+            };
             else {
                 cur.endTime = b.time;
                 cur.endIdx = b.e;
-                if (b.score > cur.peakScore) { cur.peakScore = b.score; cur.peakBlock = b; }
+                if (b.score > cur.peakScore) {
+                    cur.peakScore = b.score;
+                    cur.peakBlock = b;
+                }
             }
         } else if (cur) {
             events.push(cur);

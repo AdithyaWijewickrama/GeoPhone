@@ -1,11 +1,13 @@
 from django.db import models
 
+
 class FileBatch(models.Model):
     filename = models.CharField(max_length=255, unique=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.filename
+
 
 class AnomalyLabel(models.Model):
     file_batch = models.ForeignKey(FileBatch, on_delete=models.CASCADE, related_name='labels')

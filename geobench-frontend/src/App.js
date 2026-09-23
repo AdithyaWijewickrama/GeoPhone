@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import Chart from 'chart.js/auto';
 import './App.css';
-import { mergeEvents, formatTime, formatDuration } from './utils';
+import {formatDuration, formatTime, mergeEvents} from './utils';
 
 const LABEL_OPTIONS = ['', 'Footstep / foot traffic', 'Vehicle', 'Seismic event / tremor', 'Wind / environmental', 'Equipment / machinery', 'Sensor artifact', 'False positive', 'Unknown'];
 const DEFAULT_THRESHOLD = 5;
@@ -37,7 +37,7 @@ function App() {
         });
 
         const newChunks = Object.keys(grouped).map(timeKey => {
-            const dateStr = new Date(parseInt(timeKey)).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+            const dateStr = new Date(parseInt(timeKey)).toLocaleString([], {dateStyle: 'short', timeStyle: 'short'});
             return {
                 key: timeKey,
                 name: `${intervalMins}m Chunk: ${dateStr}`,
@@ -46,7 +46,7 @@ function App() {
             };
         });
 
-        setChunks(prev => [...prev, ...newChunks].sort((a,b) => parseInt(a.key) - parseInt(b.key)));
+        setChunks(prev => [...prev, ...newChunks].sort((a, b) => parseInt(a.key) - parseInt(b.key)));
         e.target.value = '';
     };
 
@@ -61,7 +61,7 @@ function App() {
             });
             const data = await res.json();
 
-            if (!data.ok) return { ...chunk, status: 'corrupted', missing_reports: data.missing || [data.error] };
+            if (!data.ok) return {...chunk, status: 'corrupted', missing_reports: data.missing || [data.error]};
 
             const events = mergeEvents(data.blocks, DEFAULT_THRESHOLD);
             return {
@@ -76,7 +76,7 @@ function App() {
                 raw: data
             };
         } catch (err) {
-            return { ...chunk, status: 'corrupted', missing_reports: ['Network/Server Error'] };
+            return {...chunk, status: 'corrupted', missing_reports: ['Network/Server Error']};
         }
     };
 
@@ -85,7 +85,7 @@ function App() {
         if (!pending.length) return;
         setScanning(true);
         for (let i = 0; i < pending.length; i++) {
-            setChunks(prev => prev.map(c => c.key === pending[i].key ? { ...c, status: 'processing' } : c));
+            setChunks(prev => prev.map(c => c.key === pending[i].key ? {...c, status: 'processing'} : c));
             const updated = await scanChunk(pending[i]);
             setChunks(prev => prev.map(c => c.key === pending[i].key ? updated : c));
         }
@@ -96,15 +96,15 @@ function App() {
         const labelKey = `${chunkKey}::${Math.round(event.startTime)}_${Math.round(event.endTime)}`;
 
         setLabels(prev => {
-            const newLabels = { ...prev };
+            const newLabels = {...prev};
             if (!label && !note) delete newLabels[labelKey];
-            else newLabels[labelKey] = { label, note };
+            else newLabels[labelKey] = {label, note};
             return newLabels;
         });
 
         await fetch('http://127.0.0.1:8000/api/save-label/', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 file: chunkName, // Saving against the chunk name
                 startTime: event.startTime,
@@ -121,7 +121,8 @@ function App() {
 
     return (
         <div className="bg-dark text-light min-vh-100 d-flex flex-column font-monospace">
-            <header className="p-3 bg-dark border-bottom border-secondary d-flex justify-content-between align-items-center">
+            <header
+                className="p-3 bg-dark border-bottom border-secondary d-flex justify-content-between align-items-center">
                 <div>
                     <h5 className="mb-0 text-warning">Geophone Batch Analyzer</h5>
                     <small className="text-muted">Unsupervised ML Model for Labeling</small>
@@ -142,16 +143,22 @@ function App() {
                             <option value="60">1 Hour</option>
                         </select>
                     </div>
-                    <button className="btn btn-outline-light btn-sm" onClick={() => folderInputRef.current.click()}>Import Folder</button>
-                    <button className="btn btn-warning btn-sm fw-bold" onClick={runFullScan} disabled={scanning}>Scan All Chunks</button>
+                    <button className="btn btn-outline-light btn-sm"
+                            onClick={() => folderInputRef.current.click()}>Import Folder
+                    </button>
+                    <button className="btn btn-warning btn-sm fw-bold" onClick={runFullScan} disabled={scanning}>Scan
+                        All Chunks
+                    </button>
                     <button className="btn btn-outline-danger btn-sm" onClick={() => setChunks([])}>Clear</button>
-                    <input type="file" ref={folderInputRef} className="d-none" webkitdirectory="true" directory="true" multiple onChange={handleAddFiles} />
+                    <input type="file" ref={folderInputRef} className="d-none" webkitdirectory="true" directory="true"
+                           multiple onChange={handleAddFiles}/>
                 </div>
             </header>
 
             <div className="container-fluid flex-grow-1 d-flex p-0">
                 <div className="row g-0 w-100">
-                    <div className="col-md-3 border-end border-secondary bg-dark overflow-auto" style={{ maxHeight: 'calc(100vh - 70px)' }}>
+                    <div className="col-md-3 border-end border-secondary bg-dark overflow-auto"
+                         style={{maxHeight: 'calc(100vh - 70px)'}}>
                         <div className="list-group list-group-flush mt-2">
                             {chunks.map(c => (
                                 <button
@@ -160,8 +167,10 @@ function App() {
                                     onClick={() => setSelectedKey(c.key)}
                                 >
                                     <div className="d-flex w-100 justify-content-between align-items-center">
-                                        <span style={{ fontSize: '0.85rem' }}>{c.name} <br/><small className="text-muted">{c.files.length} files</small></span>
-                                        <span className={`badge ${c.status === 'flagged' ? 'bg-danger' : c.status === 'clean' ? 'bg-success' : 'bg-secondary'}`}>
+                                        <span style={{fontSize: '0.85rem'}}>{c.name} <br/><small
+                                            className="text-muted">{c.files.length} files</small></span>
+                                        <span
+                                            className={`badge ${c.status === 'flagged' ? 'bg-danger' : c.status === 'clean' ? 'bg-success' : 'bg-secondary'}`}>
                                             {c.status === 'flagged' ? c.anomalyCount : c.status}
                                         </span>
                                     </div>
@@ -170,7 +179,7 @@ function App() {
                         </div>
                     </div>
 
-                    <div className="col-md-9 p-4 overflow-auto" style={{ maxHeight: 'calc(100vh - 70px)' }}>
+                    <div className="col-md-9 p-4 overflow-auto" style={{maxHeight: 'calc(100vh - 70px)'}}>
                         {!selectedChunk ? (
                             <div className="text-center text-muted mt-5"><h3>No interval selected</h3></div>
                         ) : selectedChunk.status === 'pending' || selectedChunk.status === 'processing' ? (
@@ -185,7 +194,8 @@ function App() {
                                 </button>
                             </div>
                         ) : (
-                            <ChunkDetail chunk={selectedChunk} labels={labels} onSaveLabel={handleSaveLabel} setLabels={setLabels} />
+                            <ChunkDetail chunk={selectedChunk} labels={labels} onSaveLabel={handleSaveLabel}
+                                         setLabels={setLabels}/>
                         )}
                     </div>
                 </div>
@@ -194,12 +204,12 @@ function App() {
     );
 }
 
-function ChunkDetail({ chunk, labels, onSaveLabel, setLabels }) {
+function ChunkDetail({chunk, labels, onSaveLabel, setLabels}) {
     const [threshold, setThreshold] = useState(DEFAULT_THRESHOLD);
     const chartRef = useRef(null);
     const canvasRef = useRef(null);
 
-    const [plotModal, setPlotModal] = useState({ visible: false, loading: false, image: null, error: null });
+    const [plotModal, setPlotModal] = useState({visible: false, loading: false, image: null, error: null});
 
     // NEW: Bulk selection state
     const [selectedEvents, setSelectedEvents] = useState(new Set());
@@ -214,18 +224,42 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels }) {
         const skip = Math.max(1, Math.floor(chunk.raw.volts.length / 2000));
         const waveData = [];
         for (let i = 0; i < chunk.raw.volts.length; i += skip) {
-            waveData.push({ x: (chunk.raw.times[i] - startTime) / 1000, y: chunk.raw.volts[i] });
+            waveData.push({x: (chunk.raw.times[i] - startTime) / 1000, y: chunk.raw.volts[i]});
         }
-        const scoreData = chunk.raw.blocks.map(b => ({ x: (b.time - startTime) / 1000, y: b.score }));
+        const scoreData = chunk.raw.blocks.map(b => ({x: (b.time - startTime) / 1000, y: b.score}));
         const xMax = (chunk.endTime - startTime) / 1000;
 
         chartRef.current = new Chart(canvasRef.current, {
             type: 'line',
             data: {
                 datasets: [
-                    { label: 'Voltage (mV)', data: waveData, yAxisID: 'y', borderColor: '#348abd', borderWidth: 1, pointRadius: 0, tension: 0 },
-                    { label: 'Anomaly Score', data: scoreData, yAxisID: 'y1', borderColor: '#d9604a', borderDash: [4, 3], borderWidth: 1.5, pointRadius: 0 },
-                    { label: 'Threshold Limit', data: [{ x: 0, y: threshold }, { x: xMax, y: threshold }], yAxisID: 'y1', borderColor: '#9c9080', borderDash: [2, 2], borderWidth: 1, pointRadius: 0 }
+                    {
+                        label: 'Voltage (mV)',
+                        data: waveData,
+                        yAxisID: 'y',
+                        borderColor: '#348abd',
+                        borderWidth: 1,
+                        pointRadius: 0,
+                        tension: 0
+                    },
+                    {
+                        label: 'Anomaly Score',
+                        data: scoreData,
+                        yAxisID: 'y1',
+                        borderColor: '#d9604a',
+                        borderDash: [4, 3],
+                        borderWidth: 1.5,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Threshold Limit',
+                        data: [{x: 0, y: threshold}, {x: xMax, y: threshold}],
+                        yAxisID: 'y1',
+                        borderColor: '#9c9080',
+                        borderDash: [2, 2],
+                        borderWidth: 1,
+                        pointRadius: 0
+                    }
                 ]
             },
             options: {
@@ -233,21 +267,21 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels }) {
                 scales: {
                     x: {
                         type: 'linear',
-                        title: { display: true, text: 'Time (Seconds)', color: '#9c9080' }
+                        title: {display: true, text: 'Time (Seconds)', color: '#9c9080'}
                     },
                     y: {
                         position: 'left',
-                        title: { display: true, text: 'Voltage (mV)', color: '#348abd' }
+                        title: {display: true, text: 'Voltage (mV)', color: '#348abd'}
                     },
                     y1: {
                         position: 'right',
-                        title: { display: true, text: 'Score', color: '#d9604a' },
-                        grid: { drawOnChartArea: false }
+                        title: {display: true, text: 'Score', color: '#d9604a'},
+                        grid: {drawOnChartArea: false}
                     }
                 },
                 plugins: {
                     // FIX 1: Restore Legend
-                    legend: { display: true, labels: { color: '#ece5d6' } }
+                    legend: {display: true, labels: {color: '#ece5d6'}}
                 }
             }
         });
@@ -290,7 +324,7 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels }) {
     };
 
     const handleViewPlot = async (ev) => {
-        setPlotModal({ visible: true, loading: true, image: null, error: null });
+        setPlotModal({visible: true, loading: true, image: null, error: null});
 
         const formData = new FormData();
         chunk.files.forEach(f => formData.append('files', f));
@@ -304,10 +338,10 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels }) {
             });
             const data = await res.json();
 
-            if (data.image) setPlotModal({ visible: true, loading: false, image: data.image, error: null });
-            else setPlotModal({ visible: true, loading: false, image: null, error: data.error });
+            if (data.image) setPlotModal({visible: true, loading: false, image: data.image, error: null});
+            else setPlotModal({visible: true, loading: false, image: null, error: data.error});
         } catch (err) {
-            setPlotModal({ visible: true, loading: false, image: null, error: 'Network failure' });
+            setPlotModal({visible: true, loading: false, image: null, error: 'Network failure'});
         }
     };
 
@@ -327,15 +361,17 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels }) {
             <div className="card bg-dark border-secondary mb-4">
                 <div className="card-header border-secondary d-flex justify-content-between align-items-center">
                     <span className="text-muted small">Continuous Interval Waveform</span>
-                    <input type="range" className="form-range w-25" min="2" max="15" step="0.5" value={threshold} onChange={(e) => setThreshold(parseFloat(e.target.value))} />
+                    <input type="range" className="form-range w-25" min="2" max="15" step="0.5" value={threshold}
+                           onChange={(e) => setThreshold(parseFloat(e.target.value))}/>
                 </div>
-                <div className="card-body" style={{ height: '350px', backgroundColor: '#1e1812' }}>
+                <div className="card-body" style={{height: '350px', backgroundColor: '#1e1812'}}>
                     <canvas ref={canvasRef}></canvas>
                 </div>
             </div>
 
             <div className="card bg-dark border-secondary">
-                <div className="card-header border-secondary text-muted small d-flex justify-content-between align-items-center">
+                <div
+                    className="card-header border-secondary text-muted small d-flex justify-content-between align-items-center">
                     <span>Flagged Events ({currentEvents.length})</span>
 
                     {/* NEW: Bulk Labeling Controls */}
@@ -356,74 +392,84 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels }) {
                 <div className="card-body p-0">
                     <table className="table table-dark table-hover table-borderless mb-0 small align-middle">
                         <thead className="border-bottom border-secondary text-muted">
-                            <tr>
-                                {/* NEW: Select All Checkbox */}
-                                <th style={{ width: '40px' }}>
-                                    <input
-                                        type="checkbox"
-                                        className="form-check-input border-secondary bg-dark"
-                                        checked={currentEvents.length > 0 && selectedEvents.size === currentEvents.length}
-                                        onChange={handleSelectAll}
-                                    />
-                                </th>
-                                <th>#</th>
-                                <th>Start</th>
-                                <th>Duration</th>
-                                <th>Score</th>
-                                <th>Label</th>
-                                <th>Note</th>
-                                <th>Analysis</th>
-                            </tr>
+                        <tr>
+                            {/* NEW: Select All Checkbox */}
+                            <th style={{width: '40px'}}>
+                                <input
+                                    type="checkbox"
+                                    className="form-check-input border-secondary bg-dark"
+                                    checked={currentEvents.length > 0 && selectedEvents.size === currentEvents.length}
+                                    onChange={handleSelectAll}
+                                />
+                            </th>
+                            <th>#</th>
+                            <th>Start</th>
+                            <th>Duration</th>
+                            <th>Score</th>
+                            <th>Label</th>
+                            <th>Note</th>
+                            <th>Analysis</th>
+                        </tr>
                         </thead>
                         <tbody>
-                            {currentEvents.length === 0 ? (
-                                <tr><td colSpan="8" className="text-center p-4 text-muted">No events crossed the threshold.</td></tr>
-                            ) : (
-                                currentEvents.map((ev, idx) => {
-                                    const labelKey = `${chunk.key}::${Math.round(ev.startTime)}_${Math.round(ev.endTime)}`;
-                                    const saved = labels[labelKey] || { label: '', note: '' };
+                        {currentEvents.length === 0 ? (
+                            <tr>
+                                <td colSpan="8" className="text-center p-4 text-muted">No events crossed the
+                                    threshold.
+                                </td>
+                            </tr>
+                        ) : (
+                            currentEvents.map((ev, idx) => {
+                                const labelKey = `${chunk.key}::${Math.round(ev.startTime)}_${Math.round(ev.endTime)}`;
+                                const saved = labels[labelKey] || {label: '', note: ''};
 
-                                    return (
-                                        <tr key={idx} className={saved.label ? 'table-success' : ''}>
-                                            {/* NEW: Individual Row Checkbox */}
-                                            <td>
-                                                <input
-                                                    type="checkbox"
-                                                    className="form-check-input border-secondary bg-dark"
-                                                    checked={selectedEvents.has(idx)}
-                                                    onChange={(e) => handleSelectOne(idx, e.target.checked)}
-                                                />
-                                            </td>
-                                            <td>{idx + 1}</td>
-                                            <td>{formatTime(ev.startTime)}</td>
-                                            <td>{formatDuration(ev.endTime - ev.startTime)}</td>
-                                            <td className="text-danger">{ev.peakScore.toFixed(1)}</td>
-                                            <td>
-                                                <select
-                                                    className="form-select form-select-sm bg-dark text-light border-secondary"
-                                                    value={saved.label}
-                                                    onChange={(e) => onSaveLabel(chunk.key, chunk.name, ev, e.target.value, saved.note)}
-                                                >
-                                                    {LABEL_OPTIONS.map(opt => <option key={opt} value={opt}>{opt || '— unlabeled —'}</option>)}
-                                                </select>
-                                            </td>
-                                            <td>
-                                                <input
-                                                    type="text"
-                                                    className="form-control form-control-sm bg-dark text-light border-secondary"
-                                                    placeholder="note..."
-                                                    value={saved.note}
-                                                    onBlur={(e) => onSaveLabel(chunk.key, chunk.name, ev, saved.label, e.target.value)}
-                                                    onChange={(e) => setLabels(prev => ({...prev, [labelKey]: { ...saved, note: e.target.value }}))}
-                                                />
-                                            </td>
-                                            <td>
-                                                <button className="btn btn-outline-info btn-sm" onClick={() => handleViewPlot(ev)}>View Plot</button>
-                                            </td>
-                                        </tr>
-                                    );
-                                })
-                            )}
+                                return (
+                                    <tr key={idx} className={saved.label ? 'table-success' : ''}>
+                                        {/* NEW: Individual Row Checkbox */}
+                                        <td>
+                                            <input
+                                                type="checkbox"
+                                                className="form-check-input border-secondary bg-dark"
+                                                checked={selectedEvents.has(idx)}
+                                                onChange={(e) => handleSelectOne(idx, e.target.checked)}
+                                            />
+                                        </td>
+                                        <td>{idx + 1}</td>
+                                        <td>{formatTime(ev.startTime)}</td>
+                                        <td>{formatDuration(ev.endTime - ev.startTime)}</td>
+                                        <td className="text-danger">{ev.peakScore.toFixed(1)}</td>
+                                        <td>
+                                            <select
+                                                className="form-select form-select-sm bg-dark text-light border-secondary"
+                                                value={saved.label}
+                                                onChange={(e) => onSaveLabel(chunk.key, chunk.name, ev, e.target.value, saved.note)}
+                                            >
+                                                {LABEL_OPTIONS.map(opt => <option key={opt}
+                                                                                  value={opt}>{opt || '— unlabeled —'}</option>)}
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <input
+                                                type="text"
+                                                className="form-control form-control-sm bg-dark text-light border-secondary"
+                                                placeholder="note..."
+                                                value={saved.note}
+                                                onBlur={(e) => onSaveLabel(chunk.key, chunk.name, ev, saved.label, e.target.value)}
+                                                onChange={(e) => setLabels(prev => ({
+                                                    ...prev,
+                                                    [labelKey]: {...saved, note: e.target.value}
+                                                }))}
+                                            />
+                                        </td>
+                                        <td>
+                                            <button className="btn btn-outline-info btn-sm"
+                                                    onClick={() => handleViewPlot(ev)}>View Plot
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })
+                        )}
                         </tbody>
                     </table>
                 </div>
@@ -431,17 +477,26 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels }) {
 
             {/* Bootstrap Modal Overlay for the Image */}
             {plotModal.visible && (
-                <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.85)' }}>
+                <div className="modal d-block" style={{backgroundColor: 'rgba(0,0,0,0.85)'}}>
                     <div className="modal-dialog modal-xl modal-dialog-centered">
                         <div className="modal-content bg-dark border-secondary">
                             <div className="modal-header border-secondary">
                                 <h5 className="modal-title text-light">Event Analysis</h5>
-                                <button type="button" className="btn-close btn-close-white" onClick={() => setPlotModal({...plotModal, visible: false})}></button>
+                                <button type="button" className="btn-close btn-close-white"
+                                        onClick={() => setPlotModal({...plotModal, visible: false})}></button>
                             </div>
-                            <div className="modal-body text-center p-0" style={{ minHeight: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div className="modal-body text-center p-0" style={{
+                                minHeight: '300px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}>
                                 {plotModal.loading && <div className="spinner-border text-warning" role="status"></div>}
-                                {plotModal.error && <div className="text-danger">Error generating plot: {plotModal.error}</div>}
-                                {plotModal.image && <img src={`data:image/png;base64,${plotModal.image}`} alt="Event Spectrogram" className="img-fluid w-100" />}
+                                {plotModal.error &&
+                                    <div className="text-danger">Error generating plot: {plotModal.error}</div>}
+                                {plotModal.image &&
+                                    <img src={`data:image/png;base64,${plotModal.image}`} alt="Event Spectrogram"
+                                         className="img-fluid w-100"/>}
                             </div>
                         </div>
                     </div>
@@ -450,4 +505,5 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels }) {
         </div>
     );
 }
+
 export default App;

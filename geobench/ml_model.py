@@ -1,7 +1,3 @@
-import pandas as pd
-import numpy as np
-
-
 def calculate_robust_z(series):
     median = series.median()
     mad = (series - median).abs().median()
@@ -69,13 +65,9 @@ def process_geophone_csv(file_obj):
         return {'ok': False, 'reason': str(e)}
 
 
-import io
-import base64
 import matplotlib
 
 matplotlib.use('Agg')  # Use server-side rendering
-import matplotlib.pyplot as plt
-from scipy import signal
 
 import io
 import base64
@@ -84,8 +76,6 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from scipy import signal
-import pandas as pd
-import numpy as np
 
 
 def generate_event_plot(file_objs, event_start_ms, event_end_ms):

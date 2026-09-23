@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
@@ -31,7 +30,8 @@ class Migration(migrations.Migration):
                 ('label_type', models.CharField(max_length=100)),
                 ('note', models.TextField(blank=True, null=True)),
                 ('saved_at', models.DateTimeField(auto_now=True)),
-                ('file_batch', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='labels', to='geobench.filebatch')),
+                ('file_batch', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='labels',
+                                                 to='geobench.filebatch')),
             ],
             options={
                 'unique_together': {('file_batch', 'start_time', 'end_time')},
