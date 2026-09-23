@@ -5,15 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="96aa16c2-cdc2-42bd-bddc-848d00f358fc" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/DjangoProject.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/geobench-frontend/src/utils.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/geobench/ml_model.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/geobench/urls.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/geobench-frontend/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/geobench-frontend/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/geobench-frontend/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/geobench-frontend/package.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -31,6 +25,18 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "AdithyaWijewickrama"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/AdithyaWijewickrama/GeoPhone.git",
+    "accountId": "e8258978-c76e-4596-99f9-d944e9381fff"
+  }
+}]]></component>
   <component name="ProjectColorInfo"><![CDATA[{
   "associatedIndex": 1
 }]]></component>
@@ -100,7 +106,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1790169541333</updated>
-      <workItem from="1790169542363" duration="9569000" />
+      <workItem from="1790169542363" duration="12131000" />
     </task>
     <servers />
   </component>
