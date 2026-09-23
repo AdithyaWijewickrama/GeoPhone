@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/GeoPhone/static/css/main.b3ac10ff.css",
+    "main.js": "/GeoPhone/static/js/main.be228ffd.js",
+    "index.html": "/GeoPhone/index.html",
+    "main.b3ac10ff.css.map": "/GeoPhone/static/css/main.b3ac10ff.css.map",
+    "main.be228ffd.js.map": "/GeoPhone/static/js/main.be228ffd.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.b3ac10ff.css",
+    "static/js/main.be228ffd.js"
+  ]
+}
