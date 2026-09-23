@@ -5,6 +5,7 @@ import {formatDuration, formatTime, mergeEvents} from './utils';
 
 const LABEL_OPTIONS = ['', 'Footstep / foot traffic', 'Vehicle', 'Seismic event / tremor', 'Wind / environmental', 'Equipment / machinery', 'Sensor artifact', 'False positive', 'Unknown'];
 const DEFAULT_THRESHOLD = 5;
+const API_BASE_URL = process.env.REACT_APP_API_URL||'http://127.0.0.1:8000';
 
 function App() {
     const [chunks, setChunks] = useState([]);
@@ -55,7 +56,7 @@ function App() {
         chunk.files.forEach(f => formData.append('files', f));
 
         try {
-            const res = await fetch('http://127.0.0.1:8000/api/process-chunk/', {
+            const res = await fetch(`${API_BASE_URL}/api/process-chunk/`, {
                 method: 'POST',
                 body: formData
             });
@@ -76,6 +77,7 @@ function App() {
                 raw: data
             };
         } catch (err) {
+            console.log(err);
             return {...chunk, status: 'corrupted', missing_reports: ['Network/Server Error']};
         }
     };
@@ -102,7 +104,7 @@ function App() {
             return newLabels;
         });
 
-        await fetch('http://127.0.0.1:8000/api/save-label/', {
+        await fetch(`${API_BASE_URL}/api/save-label/`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -125,7 +127,7 @@ function App() {
                 className="p-3 bg-dark border-bottom border-secondary d-flex justify-content-between align-items-center">
                 <div>
                     <h5 className="mb-0 text-warning">Geophone Batch Analyzer</h5>
-                    <small className="text-muted">Unsupervised ML Model for Labeling</small>
+                    <small className="text-muted">Unsupervised ML Model for Training</small>
                 </div>
                 <div className="d-flex align-items-center gap-3">
                     <div className="input-group input-group-sm w-auto">
@@ -332,7 +334,7 @@ function ChunkDetail({chunk, labels, onSaveLabel, setLabels}) {
         formData.append('end_time', ev.endTime);
 
         try {
-            const res = await fetch('http://127.0.0.1:8000/api/generate-plot/', {
+            const res = await fetch(`${API_BASE_URL}/api/generate-plot/`, {
                 method: 'POST',
                 body: formData
             });
