@@ -22,12 +22,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-^ao5sst_6=$qdye!l8y=^caa1&u%(_*87qn&=5rz27&fdhi+e^'
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = []
-
-
 # Application definition
 
 INSTALLED_APPS = [
@@ -53,8 +47,14 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+DEBUG = False
+ALLOWED_HOSTS = ['*'] # Allows Render to route traffic to your app
+
+# Ensure your GitHub pages URL is here
 CORS_ALLOWED_ORIGINS = [
+    "https://adithyawijewickrama.github.io",
     "http://localhost:3000",
+
 ]
 
 ROOT_URLCONF = 'geophone_project.urls'
