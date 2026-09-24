@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-export default function GoogleAuthButton({ text = 'Continue with Google', onSuccess, onError }) {
+export default function GoogleAuthButton({ text = 'Continue with Google', onSuccess, onError, compact = false }) {
     const { loginWithGoogle } = useAuth();
     const [loading, setLoading] = useState(false);
     const [showDevModal, setShowDevModal] = useState(false);
@@ -14,6 +14,7 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
     const handleGoogleResponse = useCallback(async (response) => {
         setLoading(true);
         try {
+            // response.credential contains the Google JWT token
             const user = await loginWithGoogle({ credential: response.credential });
             if (onSuccess) onSuccess(user);
         } catch (err) {
@@ -24,8 +25,8 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
     }, [loginWithGoogle, onSuccess, onError]);
 
     useEffect(() => {
-        // If Google Identity Services script is available and client ID is provided
-        if (window.google?.accounts?.id && googleClientId && googleButtonRef.current) {
+        // Initialize the standard Google Identity Services button if ref is rendered and client ID exists
+        if (!compact && window.google?.accounts?.id && googleClientId && googleButtonRef.current) {
             try {
                 window.google.accounts.id.initialize({
                     client_id: googleClientId,
@@ -35,23 +36,69 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
                 window.google.accounts.id.renderButton(googleButtonRef.current, {
                     theme: 'filled_black',
                     size: 'large',
-                    text: text.includes('Sign up') ? 'signup_with' : 'signin_with',
-                    shape: 'rectangular',
-                    width: '100%'
+                    text: (text.toLowerCase().includes('sign up') || text.toLowerCase().includes('signup')) ? 'signup_with' : 'signin_with',
+                    shape: 'rectangular'
                 });
             } catch (err) {
                 console.warn('Google Identity initialization error:', err);
             }
         }
-    }, [googleClientId, text, handleGoogleResponse]);
+    }, [googleClientId, text, compact, handleGoogleResponse]);
 
     const handleCustomGoogleClick = async () => {
-        if (window.google?.accounts?.id && googleClientId) {
-            window.google.accounts.id.prompt();
-            return;
+        // Use Google's native OAuth2 Token Client if available and client ID is present
+        if (googleClientId && window.google?.accounts?.oauth2) {
+            try {
+                const tokenClient = window.google.accounts.oauth2.initTokenClient({
+                    client_id: googleClientId,
+                    scope: 'email profile openid',
+                    callback: async (tokenResponse) => {
+                        if (tokenResponse && tokenResponse.access_token) {
+                            setLoading(true);
+                            try {
+                                const infoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                                    headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
+                                });
+                                const info = await infoRes.json();
+
+                                const user = await loginWithGoogle({
+                                    email: info.email,
+                                    name: info.name,
+                                    google_id: info.sub,
+                                    picture: info.picture,
+                                    given_name: info.given_name,
+                                    family_name: info.family_name
+                                });
+                                if (onSuccess) onSuccess(user);
+                            } catch (e) {
+                                if (onError) onError('Failed to fetch Google profile');
+                            } finally {
+                                setLoading(false);
+                            }
+                        }
+                    },
+                    error_callback: (err) => {
+                        if (onError) onError(err?.message || 'Google authentication failed');
+                    }
+                });
+                tokenClient.requestAccessToken();
+                return;
+            } catch (err) {
+                console.warn('OAuth2 client initialization error:', err);
+            }
         }
 
-        // Development / demonstration Google login fallback
+        // Fallback to Google One Tap prompt if available and client ID is present
+        if (googleClientId && window.google?.accounts?.id) {
+            try {
+                window.google.accounts.id.prompt();
+                return;
+            } catch (err) {
+                console.warn('Google One Tap prompt error:', err);
+            }
+        }
+
+        // Development / Demonstration fallback modal when Google Client ID or GIS is not loaded
         setShowDevModal(true);
     };
 
@@ -60,6 +107,9 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
         const email = devEmail.trim() || 'demo.user@gmail.com';
         const name = devName.trim() || 'Demo Google User';
         const google_id = `google_${Math.abs(email.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0))}`;
+        const nameParts = name.split(' ');
+        const given_name = nameParts[0] || '';
+        const family_name = nameParts.slice(1).join(' ') || '';
 
         setLoading(true);
         setShowDevModal(false);
@@ -68,7 +118,9 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
                 email,
                 name,
                 google_id,
-                picture: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}`
+                picture: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}`,
+                given_name,
+                family_name
             });
             if (onSuccess) onSuccess(user);
         } catch (err) {
@@ -79,18 +131,22 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
     };
 
     return (
-        <div className="w-100">
-            {/* GIS Container (if initialized) */}
-            <div ref={googleButtonRef} className={googleClientId ? "d-block mb-2" : "d-none"}></div>
+        <div className={compact ? "" : "w-100"}>
+            {/* Standard Google Sign-In Button Container (hidden in compact navbar mode) */}
+            {!compact && (
+                <div ref={googleButtonRef} className={googleClientId && window.google?.accounts?.id ? "d-block mb-2" : "d-none"}></div>
+            )}
 
-            {/* Custom Google Button */}
-            {(!googleClientId || !window.google?.accounts?.id) && (
+            {/* Custom Button (shown in compact mode, or when standard GIS button is not active) */}
+            {(compact || !googleClientId || !window.google?.accounts?.id) && (
                 <button
                     type="button"
-                    className="btn btn-outline-light w-100 d-flex align-items-center justify-content-center gap-2 py-2 fw-semibold"
+                    className={compact
+                        ? "btn btn-sm btn-outline-warning d-flex align-items-center justify-content-center gap-2 fw-semibold"
+                        : "btn btn-outline-light w-100 d-flex align-items-center justify-content-center gap-2 py-2 fw-semibold"}
                     onClick={handleCustomGoogleClick}
                     disabled={loading}
-                    style={{
+                    style={compact ? undefined : {
                         backgroundColor: '#131314',
                         borderColor: '#8e918f',
                         color: '#e3e3e3'
@@ -113,14 +169,14 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
 
             {/* Quick Google Account Input for Demo/Dev */}
             {showDevModal && (
-                <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1070 }}>
+                <div className="modal d-block text-start" style={{ backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1070 }} tabIndex="-1">
                     <div className="modal-dialog modal-dialog-centered modal-sm">
-                        <div className="modal-content bg-dark border-secondary text-light">
+                        <div className="modal-content bg-dark border-secondary text-light shadow-lg">
                             <div className="modal-header border-secondary py-2">
-                                <h6 className="modal-title d-flex align-items-center gap-2 text-warning">
+                                <h6 className="modal-title d-flex align-items-center gap-2 text-warning mb-0">
                                     <span>Google Account Sign-In</span>
                                 </h6>
-                                <button type="button" className="btn-close btn-close-white" onClick={() => setShowDevModal(false)}></button>
+                                <button type="button" className="btn-close btn-close-white" onClick={() => setShowDevModal(false)} aria-label="Close"></button>
                             </div>
                             <form onSubmit={handleDevSubmit}>
                                 <div className="modal-body py-3">
@@ -160,7 +216,7 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
                                         >
                                             Use Sample
                                         </button>
-                                        <button type="submit" className="btn btn-warning btn-sm flex-fill fw-bold">
+                                        <button type="submit" className="btn btn-warning btn-sm flex-fill fw-bold text-dark">
                                             Continue
                                         </button>
                                     </div>

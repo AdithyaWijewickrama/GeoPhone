@@ -2,20 +2,25 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { BrowserRouter as Router } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import TriageDashboard from './pages/TriageDashboard';
 import LocationModal from './components/LocationModal';
 import LabeledData from './pages/LabeledData';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import GoogleAuthButton from './components/GoogleAuthButton';
+import ChunkDetail from './components/triage/ChunkDetail';
+import DefineEventModal from './components/triage/DefineEventModal';
 
 const renderWithProviders = (ui) => {
     return render(
-        <AuthProvider>
-            <Router>
-                {ui}
-            </Router>
-        </AuthProvider>
+        <ThemeProvider>
+            <AuthProvider>
+                <Router>
+                    {ui}
+                </Router>
+            </AuthProvider>
+        </ThemeProvider>
     );
 };
 
@@ -189,5 +194,76 @@ describe('LabeledData Component', () => {
 
         expect(screen.getByText('Curated Training Data')).toBeInTheDocument();
         expect(screen.getByText('Location:')).toBeInTheDocument();
+    });
+});
+
+describe('ChunkDetail Component', () => {
+    const mockChunk = {
+        key: 'chunk_1',
+        name: '10m Chunk: Test',
+        startTime: 1727172000000,
+        endTime: 1727172600000,
+        status: 'flagged',
+        raw: {
+            volts: [0.1, 0.2, 0.5, 0.1],
+            times: [1727172000000, 1727172001000, 1727172002000, 1727172003000],
+            blocks: [
+                { time: 1727172000000, score: 6.2 },
+                { time: 1727172001000, score: 7.1 }
+            ]
+        }
+    };
+
+    test('renders waveform chart card and flagged events table', () => {
+        renderWithProviders(
+            <ChunkDetail
+                chunk={mockChunk}
+                labels={{}}
+                onSaveLabel={jest.fn()}
+                setLabels={jest.fn()}
+                currentLocation={{ id: 1, name: 'Site Alpha' }}
+                onRefreshKnownEvents={jest.fn()}
+            />
+        );
+
+        expect(screen.getByText('Combined Signal Waveform & Detection Anomaly Score')).toBeInTheDocument();
+        expect(screen.getByText(/Flagged Events/i)).toBeInTheDocument();
+        expect(screen.getByText('View Plot')).toBeInTheDocument();
+    });
+
+    test('displays analysis failed message for corrupted chunk', () => {
+        renderWithProviders(
+            <ChunkDetail
+                chunk={{ key: 'c_err', name: 'Error chunk', status: 'corrupted', missing_reports: ['Corrupted headers'] }}
+                labels={{}}
+                onSaveLabel={jest.fn()}
+                setLabels={jest.fn()}
+                currentLocation={null}
+                onRefreshKnownEvents={jest.fn()}
+            />
+        );
+
+        expect(screen.getByText('Analysis Failed')).toBeInTheDocument();
+        expect(screen.getByText('• Corrupted headers')).toBeInTheDocument();
+    });
+});
+
+describe('DefineEventModal Component', () => {
+    test('renders form fields and handles event name input', () => {
+        renderWithProviders(
+            <DefineEventModal
+                show={true}
+                onClose={jest.fn()}
+                currentLocation={{ id: 1, name: 'Site Alpha' }}
+                locations={[{ id: 1, name: 'Site Alpha' }]}
+                onOpenLocationModal={jest.fn()}
+                user={{ id: 1, username: 'tester' }}
+                onEventCreated={jest.fn()}
+            />
+        );
+
+        expect(screen.getByText('📌 Define Custom Known Event')).toBeInTheDocument();
+        expect(screen.getByPlaceholderText(/Controlled Blast/i)).toBeInTheDocument();
+        expect(screen.getByText('Save Known Event Rule')).toBeInTheDocument();
     });
 });

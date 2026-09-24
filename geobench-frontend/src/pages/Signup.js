@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import GoogleAuthButton from '../components/GoogleAuthButton';
 
 export default function Signup() {
     const navigate = useNavigate();
+    const location = useLocation();
     const { signup } = useAuth();
     const [formData, setFormData] = useState({
         username: '',
@@ -16,6 +17,8 @@ export default function Signup() {
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+
+    const from = location.state?.from?.pathname || '/triage';
 
     const handleChange = (e) => {
         setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -55,7 +58,7 @@ export default function Signup() {
                 first_name: formData.first_name.trim(),
                 last_name: formData.last_name.trim()
             });
-            navigate('/triage');
+            navigate(from, { replace: true });
         } catch (err) {
             setError(err.message || 'Signup failed. Please try again.');
         } finally {
@@ -64,7 +67,7 @@ export default function Signup() {
     };
 
     const handleGoogleSuccess = () => {
-        navigate('/triage');
+        navigate(from, { replace: true });
     };
 
     const handleGoogleError = (err) => {
