@@ -19,14 +19,16 @@ def serialize_user(user):
         avatar_url = user.profile.avatar_url
         google_id = user.profile.google_id
 
-    full_name = f"{user.first_name} {user.last_name}".strip()
+    full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
+    display_name = full_name if full_name else (user.first_name or user.username)
     return {
         'id': user.id,
         'username': user.username,
+        'name': full_name or user.username,
         'email': user.email,
         'first_name': user.first_name,
         'last_name': user.last_name,
-        'display_name': full_name or user.username,
+        'display_name': display_name,
         'avatar_url': avatar_url,
         'google_id': google_id,
         'is_google': bool(google_id),
@@ -183,7 +185,7 @@ def auth_google(request):
 
         email = (google_data.get('email') or data.get('email') or '').strip()
         google_id = (google_data.get('sub') or data.get('google_id') or data.get('sub') or '').strip()
-        name = (google_data.get('name') or data.get('name') or '').strip()
+        name = (google_data.get('name') or data.get('name') or data.get('display_name') or '').strip()
         picture = (google_data.get('picture') or data.get('picture') or data.get('avatar_url') or '').strip()
         given_name = (google_data.get('given_name') or data.get('given_name') or '').strip()
         family_name = (google_data.get('family_name') or data.get('family_name') or '').strip()
@@ -207,6 +209,17 @@ def auth_google(request):
             user = User.objects.filter(email__iexact=email).first()
 
         if user is not None:
+            # Update user first/last name if provided
+            user_changed = False
+            if given_name and user.first_name != given_name:
+                user.first_name = given_name
+                user_changed = True
+            if family_name and user.last_name != family_name:
+                user.last_name = family_name
+                user_changed = True
+            if user_changed:
+                user.save()
+
             # Update user profile
             profile, _ = UserProfile.objects.get_or_create(user=user)
             updated = False
@@ -554,64 +567,215 @@ def handle_known_events(request):
     elif request.method == 'POST':
         try:
             data = json.loads(request.body)
-            name = (data.get('name') or '').strip()
-            if not name:
-                return JsonResponse({'error': 'Event name is required'}, status=400)
+            action = data.get('action')
+            method_override = data.get('_method', '').upper()
+            event_id = data.get('id') or data.get('event_id')
 
-            start_time = float(data['start_time'])
-            end_time = float(data['end_time'])
-            location_id = data.get('location_id')
-            note = data.get('note', '')
-            force = data.get('force', False)
-            user = get_request_user(request, data)
+            if action == 'delete' or method_override == 'DELETE':
+                if not event_id:
+                    return JsonResponse({'error': 'Event ID required for delete'}, status=400)
+                event = KnownEvent.objects.filter(id=event_id).first()
+                if not event:
+                    return JsonResponse({'error': 'Event not found'}, status=404)
+                deleted_id = event.id
+                event.delete()
+                return JsonResponse({'status': 'deleted', 'id': deleted_id})
 
-            # Check collision:
-            collisions_qs = KnownEvent.objects.filter(start_time__lt=end_time, end_time__gt=start_time)
-            if location_id:
-                collisions_qs = collisions_qs.filter(location_id=location_id)
-            collisions = [
-                {
-                    'id': c.id,
-                    'name': c.name,
-                    'start_time': c.start_time,
-                    'end_time': c.end_time,
-                    'location_name': c.location.name if c.location else None
-                }
-                for c in collisions_qs
-            ]
+            if action == 'update' or method_override in ('PUT', 'PATCH') or (event_id and 'name' in data):
+                return _update_known_event(request, event_id, data)
 
-            if collisions and not force:
-                return JsonResponse({
-                    'status': 'collision_warning',
-                    'collisions': collisions,
-                    'message': f"Collides with {len(collisions)} existing known event(s)."
-                })
+            return _create_known_event(request, data)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=400)
 
-            location = Location.objects.filter(id=location_id).first() if location_id else None
-            event = KnownEvent.objects.create(
-                user=user,
-                name=name,
-                start_time=start_time,
-                end_time=end_time,
-                location=location,
-                note=note
-            )
-            return JsonResponse({
-                'id': event.id,
-                'name': event.name,
-                'start_time': event.start_time,
-                'end_time': event.end_time,
-                'location_id': event.location_id,
-                'location_name': event.location.name if event.location else None,
-                'user_id': event.user_id,
-                'user_name': event.user.username if event.user else None,
-                'note': event.note,
-                'status': 'success'
-            })
+    elif request.method in ('PUT', 'PATCH'):
+        try:
+            data = json.loads(request.body)
+            event_id = data.get('id') or data.get('event_id') or request.GET.get('id')
+            if not event_id:
+                return JsonResponse({'error': 'Event ID is required'}, status=400)
+            return _update_known_event(request, event_id, data)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=400)
+
+    elif request.method == 'DELETE':
+        try:
+            event_id = request.GET.get('id') or request.GET.get('event_id')
+            if not event_id and request.body:
+                try:
+                    data = json.loads(request.body)
+                    event_id = data.get('id') or data.get('event_id')
+                except Exception:
+                    pass
+            if not event_id:
+                return JsonResponse({'error': 'Event ID is required'}, status=400)
+            event = KnownEvent.objects.filter(id=event_id).first()
+            if not event:
+                return JsonResponse({'error': 'Event not found'}, status=404)
+            deleted_id = event.id
+            event.delete()
+            return JsonResponse({'status': 'deleted', 'id': deleted_id})
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=400)
 
     return JsonResponse({'error': 'Invalid method'}, status=405)
+
+
+def _create_known_event(request, data):
+    name = (data.get('name') or '').strip()
+    if not name:
+        return JsonResponse({'error': 'Event name is required'}, status=400)
+
+    start_time = float(data['start_time'])
+    end_time = float(data['end_time'])
+    location_id = data.get('location_id')
+    note = data.get('note', '')
+    force = data.get('force', False)
+    user = get_request_user(request, data)
+
+    # Check collision:
+    collisions_qs = KnownEvent.objects.filter(start_time__lt=end_time, end_time__gt=start_time)
+    if location_id:
+        collisions_qs = collisions_qs.filter(location_id=location_id)
+    collisions = [
+        {
+            'id': c.id,
+            'name': c.name,
+            'start_time': c.start_time,
+            'end_time': c.end_time,
+            'location_name': c.location.name if c.location else None
+        }
+        for c in collisions_qs
+    ]
+
+    if collisions and not force:
+        return JsonResponse({
+            'status': 'collision_warning',
+            'collisions': collisions,
+            'message': f"Collides with {len(collisions)} existing known event(s)."
+        })
+
+    location = Location.objects.filter(id=location_id).first() if location_id else None
+    event = KnownEvent.objects.create(
+        user=user,
+        name=name,
+        start_time=start_time,
+        end_time=end_time,
+        location=location,
+        note=note
+    )
+    return JsonResponse({
+        'id': event.id,
+        'name': event.name,
+        'start_time': event.start_time,
+        'end_time': event.end_time,
+        'location_id': event.location_id,
+        'location_name': event.location.name if event.location else None,
+        'user_id': event.user_id,
+        'user_name': event.user.username if event.user else None,
+        'note': event.note,
+        'status': 'success'
+    })
+
+
+def _update_known_event(request, event_id, data):
+    event = KnownEvent.objects.filter(id=event_id).first()
+    if not event:
+        return JsonResponse({'error': 'Event not found'}, status=404)
+
+    name = (data.get('name') or event.name).strip()
+    if not name:
+        return JsonResponse({'error': 'Event name cannot be empty'}, status=400)
+
+    start_time = float(data.get('start_time', event.start_time))
+    end_time = float(data.get('end_time', event.end_time))
+    location_id = data.get('location_id', event.location_id)
+    note = data.get('note', event.note)
+    force = data.get('force', False)
+    user = get_request_user(request, data) or event.user
+
+    # Collision check excluding current event
+    collisions_qs = KnownEvent.objects.filter(start_time__lt=end_time, end_time__gt=start_time).exclude(id=event.id)
+    if location_id:
+        collisions_qs = collisions_qs.filter(location_id=location_id)
+    collisions = [
+        {
+            'id': c.id,
+            'name': c.name,
+            'start_time': c.start_time,
+            'end_time': c.end_time,
+            'location_name': c.location.name if c.location else None
+        }
+        for c in collisions_qs
+    ]
+
+    if collisions and not force:
+        return JsonResponse({
+            'status': 'collision_warning',
+            'collisions': collisions,
+            'message': f"Collides with {len(collisions)} existing known event(s)."
+        })
+
+    location = Location.objects.filter(id=location_id).first() if location_id else None
+    event.name = name
+    event.start_time = start_time
+    event.end_time = end_time
+    event.location = location
+    event.note = note
+    if user:
+        event.user = user
+    event.save()
+
+    return JsonResponse({
+        'id': event.id,
+        'name': event.name,
+        'start_time': event.start_time,
+        'end_time': event.end_time,
+        'location_id': event.location_id,
+        'location_name': event.location.name if event.location else None,
+        'user_id': event.user_id,
+        'user_name': event.user.username if event.user else None,
+        'note': event.note,
+        'status': 'success'
+    })
+
+
+@csrf_exempt
+def handle_known_event_detail(request, event_id):
+    event = KnownEvent.objects.filter(id=event_id).first()
+    if not event:
+        return JsonResponse({'error': 'Event not found'}, status=404)
+
+    if request.method == 'GET':
+        return JsonResponse({
+            'id': event.id,
+            'name': event.name,
+            'start_time': event.start_time,
+            'end_time': event.end_time,
+            'note': event.note or '',
+            'location_id': event.location_id,
+            'location_name': event.location.name if event.location else None,
+            'user_id': event.user_id,
+            'user_name': event.user.username if event.user else None
+        })
+
+    elif request.method in ('PUT', 'PATCH', 'POST'):
+        try:
+            data = json.loads(request.body)
+            if data.get('action') == 'delete' or data.get('_method', '').upper() == 'DELETE':
+                deleted_id = event.id
+                event.delete()
+                return JsonResponse({'status': 'deleted', 'id': deleted_id})
+            return _update_known_event(request, event_id, data)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=400)
+
+    elif request.method == 'DELETE':
+        deleted_id = event.id
+        event.delete()
+        return JsonResponse({'status': 'deleted', 'id': deleted_id})
+
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
 
 
 @csrf_exempt
@@ -625,8 +789,14 @@ def check_event_collision(request):
         start_time = float(data.get('start_time', 0))
         end_time = float(data.get('end_time', 0))
         location_id = data.get('location_id')
+        exclude_id = data.get('exclude_id') or data.get('event_id') or data.get('id')
 
         qs = KnownEvent.objects.filter(start_time__lt=end_time, end_time__gt=start_time)
+        if exclude_id:
+            try:
+                qs = qs.exclude(id=int(exclude_id))
+            except (ValueError, TypeError):
+                pass
         if location_id and str(location_id) != 'all':
             qs = qs.filter(location_id=location_id)
 

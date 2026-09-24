@@ -11,7 +11,6 @@ import Signup from './pages/Signup';
 import GoogleAuthButton from './components/GoogleAuthButton';
 import ChunkDetail from './components/triage/ChunkDetail';
 import DefineEventModal from './components/triage/DefineEventModal';
-import FileExplorerModal from './components/triage/FileExplorerModal';
 import WaveformChart from './components/triage/WaveformChart';
 import FlaggedEventsTable from './components/triage/FlaggedEventsTable';
 import RawFilesList from './components/triage/RawFilesList';
@@ -102,7 +101,7 @@ describe('Auth Components', () => {
 
         fireEvent.click(googleBtn);
         expect(screen.getByText('Google Account Sign-In')).toBeInTheDocument();
-        expect(screen.getByPlaceholderText('alex.seismic@gmail.com')).toBeInTheDocument();
+        expect(screen.getByPlaceholderText('demo.user.google@gmail.com')).toBeInTheDocument();
     });
 });
 
@@ -553,36 +552,89 @@ describe('SpectrogramModal Component', () => {
     });
 });
 
-describe('FileExplorerModal Component', () => {
-    test('renders Windows Explorer structure with breadcrumbs, tree pane, search, and import buttons', () => {
-        const onImportMock = jest.fn();
-        const onCloseMock = jest.fn();
+describe('Known Events Edit & Delete in Dashboard and Modals', () => {
+    test('renders KnownEventsList with Edit and Delete buttons and fires handlers', () => {
+        const onEditMock = jest.fn();
+        const onDeleteMock = jest.fn();
+        const onSelectMock = jest.fn();
+
+        const mockEvents = [
+            {
+                id: 101,
+                name: 'Explosion Blast',
+                start_time: new Date('2026-09-24T12:00:00').getTime(),
+                end_time: new Date('2026-09-24T12:00:15').getTime(),
+                duration: 15,
+                note: 'Quarry detonation',
+                location_name: 'Site Alpha'
+            }
+        ];
 
         renderWithProviders(
-            <FileExplorerModal
-                show={true}
-                onClose={onCloseMock}
-                onImportFiles={onImportMock}
-                currentLocation={{ id: 1, name: 'Site Alpha' }}
-                locations={[{ id: 1, name: 'Site Alpha' }]}
+            <KnownEventsList
+                knownEvents={mockEvents}
+                selectedKnownEventId={null}
+                onSelectKnownEvent={onSelectMock}
+                onOpenDefineEventModal={jest.fn()}
+                onEditKnownEvent={onEditMock}
+                onDeleteKnownEvent={onDeleteMock}
+                onRefreshKnownEvents={jest.fn()}
+                rawFiles={[]}
+                loading={false}
             />
         );
 
-        expect(screen.getByText(/Open Files — Windows File Explorer/i)).toBeInTheDocument();
-        expect(screen.getAllByText('This PC').length).toBeGreaterThan(0);
-        expect(screen.getAllByText('Local Disk (C:)').length).toBeGreaterThan(0);
-        expect(screen.getByPlaceholderText(/Search CSV/i)).toBeInTheDocument();
-        expect(screen.getByText('⭐ QUICK ACCESS')).toBeInTheDocument();
-        expect(screen.getByText('💻 THIS PC')).toBeInTheDocument();
-        expect(screen.getByText('📍 STATIONS')).toBeInTheDocument();
-        expect(screen.getByText('📄 Browse PC Files')).toBeInTheDocument();
-        expect(screen.getByText('📁 Browse PC Folder')).toBeInTheDocument();
+        expect(screen.getByText(/Explosion Blast/i)).toBeInTheDocument();
+        expect(screen.getByText('Site Alpha')).toBeInTheDocument();
+        expect(screen.getByText(/Quarry detonation/i)).toBeInTheDocument();
 
-        const openImportBtn = screen.getByRole('button', { name: /Open \/ Import/i });
-        expect(openImportBtn).toBeInTheDocument();
-        fireEvent.click(openImportBtn);
-        expect(onImportMock).toHaveBeenCalled();
-        expect(onCloseMock).toHaveBeenCalled();
+        // Edit button
+        const editBtn = screen.getByRole('button', { name: /Edit/i });
+        expect(editBtn).toBeInTheDocument();
+        fireEvent.click(editBtn);
+        expect(onEditMock).toHaveBeenCalledWith(mockEvents[0]);
+
+        // Delete button
+        const deleteBtn = screen.getByRole('button', { name: /🗑️/i });
+        expect(deleteBtn).toBeInTheDocument();
+        fireEvent.click(deleteBtn);
+        expect(onDeleteMock).toHaveBeenCalledWith(mockEvents[0]);
+    });
+
+    test('renders DefineEventModal in Edit mode with pre-filled fields, Save Changes and Delete button', () => {
+        const onCloseMock = jest.fn();
+        const onEventCreatedMock = jest.fn();
+        const onDeleteEventMock = jest.fn();
+
+        const eventToEdit = {
+            id: 202,
+            name: 'P-Wave Arrival',
+            start_time: new Date('2026-09-24T14:30:00').getTime(),
+            end_time: new Date('2026-09-24T14:30:20').getTime(),
+            duration: 20,
+            note: 'Initial tremor',
+            location_id: 1
+        };
+
+        renderWithProviders(
+            <DefineEventModal
+                show={true}
+                onClose={onCloseMock}
+                currentLocation={{ id: 1, name: 'Site Alpha' }}
+                locations={[{ id: 1, name: 'Site Alpha' }]}
+                onOpenLocationModal={jest.fn()}
+                user={{ id: 1, username: 'testuser', display_name: 'Demo user google' }}
+                onEventCreated={onEventCreatedMock}
+                eventToEdit={eventToEdit}
+                onDeleteEvent={onDeleteEventMock}
+            />
+        );
+
+        expect(screen.getByText('Edit Known Event')).toBeInTheDocument();
+        expect(screen.getByDisplayValue('P-Wave Arrival')).toBeInTheDocument();
+        expect(screen.getByDisplayValue('Initial tremor')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Save Changes/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Delete/i })).toBeInTheDocument();
     });
 });
 
@@ -623,7 +675,6 @@ describe('RawFilesList Days, Hours & Minutes Layout', () => {
                 setDragRawStart={jest.fn()}
                 dragRawDeselect={false}
                 setDragRawDeselect={jest.fn()}
-                onOpenExplorerModal={jest.fn()}
                 knownEvents={mockKnownEvents}
             />
         );

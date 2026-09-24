@@ -18,7 +18,6 @@ export default function RawFilesList({
     setDragRawStart,
     dragRawDeselect,
     setDragRawDeselect,
-    onOpenExplorerModal,
     knownEvents = [],
     activeDay,
     setActiveDay,
@@ -291,16 +290,6 @@ export default function RawFilesList({
                     📁 List 1: Raw Files ({rawFiles.length})
                 </span>
                 <div className="d-flex align-items-center gap-1">
-                    {onOpenExplorerModal && (
-                        <button
-                            className="btn btn-outline-info btn-sm py-0 px-1"
-                            style={{ fontSize: '0.72rem' }}
-                            onClick={onOpenExplorerModal}
-                            title="Open Windows File Explorer Modal"
-                        >
-                            🗔 Explorer
-                        </button>
-                    )}
                     {setShowList1 && (
                         <button
                             className="btn btn-outline-secondary btn-sm py-0 px-1"

@@ -6,6 +6,8 @@ export default function KnownEventsList({
     selectedKnownEventId,
     onSelectKnownEvent,
     onOpenDefineEventModal,
+    onEditKnownEvent,
+    onDeleteKnownEvent,
     onRefreshKnownEvents,
     rawFiles = [],
     loading = false
@@ -156,16 +158,46 @@ export default function KnownEventsList({
                                     title={`Click to navigate List 1 to ${formatDateTime(startMs)} and load waveform`}
                                 >
                                     <div className="card-body p-2">
-                                        {/* Name & Badge */}
+                                        {/* Name & Badge & Actions */}
                                         <div className="d-flex justify-content-between align-items-start gap-1 mb-1">
-                                            <span className="fw-bold text-light" style={{ fontSize: '0.85rem' }}>
-                                                📌 {ev.name}
-                                            </span>
-                                            {ev.location_name && (
-                                                <span className="badge bg-secondary bg-opacity-50 text-light" style={{ fontSize: '0.65rem' }}>
-                                                    {ev.location_name}
+                                            <div className="d-flex align-items-center gap-1 flex-wrap" style={{ maxWidth: '70%' }}>
+                                                <span className="fw-bold text-light" style={{ fontSize: '0.85rem' }}>
+                                                    📌 {ev.name}
                                                 </span>
-                                            )}
+                                                {ev.location_name && (
+                                                    <span className="badge bg-secondary bg-opacity-50 text-light" style={{ fontSize: '0.65rem' }}>
+                                                        {ev.location_name}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div className="d-flex align-items-center gap-1">
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-outline-info btn-sm py-0 px-1"
+                                                    style={{ fontSize: '0.68rem', lineHeight: '1.2' }}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (onEditKnownEvent) onEditKnownEvent(ev);
+                                                        else if (onOpenDefineEventModal) onOpenDefineEventModal(ev);
+                                                    }}
+                                                    title="Edit this known event"
+                                                >
+                                                    ✏️ Edit
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-outline-danger btn-sm py-0 px-1"
+                                                    style={{ fontSize: '0.68rem', lineHeight: '1.2' }}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (onDeleteKnownEvent) onDeleteKnownEvent(ev);
+                                                    }}
+                                                    title="Delete this known event"
+                                                >
+                                                    🗑️
+                                                </button>
+                                            </div>
                                         </div>
 
                                         {/* Date/Time and Duration */}

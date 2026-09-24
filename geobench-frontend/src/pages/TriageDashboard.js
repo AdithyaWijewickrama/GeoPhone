@@ -10,7 +10,6 @@ import TriageHeader from '../components/triage/TriageHeader';
 import RawFilesList from '../components/triage/RawFilesList';
 import KnownEventsList from '../components/triage/KnownEventsList';
 import DefineEventModal from '../components/triage/DefineEventModal';
-import FileExplorerModal from '../components/triage/FileExplorerModal';
 import ChunkDetail from '../components/triage/ChunkDetail';
 
 export default function TriageDashboard({
@@ -45,11 +44,9 @@ export default function TriageDashboard({
     const [activeChunkData, setActiveChunkData] = useState(null);
     const [analyzingSelection, setAnalyzingSelection] = useState(false);
 
-    // Define Event Modal State
+    // Define/Edit Event Modal State
     const [showDefineModal, setShowDefineModal] = useState(false);
-
-    // Windows File Explorer Modal State
-    const [showExplorerModal, setShowExplorerModal] = useState(false);
+    const [eventToEdit, setEventToEdit] = useState(null);
 
     // File input refs
     const fileInputRef = useRef(null);
@@ -113,21 +110,36 @@ export default function TriageDashboard({
         fetchKnownEvents();
     };
 
-    // Handle importing files from Windows File Explorer Modal
-    const handleImportFromExplorer = (files) => {
-        if (!files || !files.length) return;
+    const handleOpenDefineModal = (ev = null) => {
+        setEventToEdit(ev);
+        setShowDefineModal(true);
+    };
 
-        if (!currentLocation && onOpenLocationModal) {
-            onOpenLocationModal();
+    const handleCloseDefineModal = () => {
+        setShowDefineModal(false);
+        setEventToEdit(null);
+    };
+
+    const handleDeleteKnownEvent = async (ev) => {
+        if (!ev || !ev.id) return;
+        if (!window.confirm(`Are you sure you want to delete known event "${ev.name}"?`)) return;
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/known-events/${ev.id}/`, {
+                method: 'DELETE'
+            });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                alert(data.error || "Failed to delete event");
+                return;
+            }
+            if (selectedKnownEventId === ev.id) {
+                setSelectedKnownEventId(null);
+            }
+            await fetchKnownEvents();
+        } catch (err) {
+            console.error("Error deleting event:", err);
+            alert("Error connecting to server.");
         }
-
-        const sorted = [...files].sort((a, b) => getFileDateMs(a) - getFileDateMs(b));
-        setRawFiles(sorted);
-        setSelectedRawIndices(new Set());
-        setActiveChunkData(null);
-
-        // Check database and update known events when loading files
-        fetchKnownEvents();
     };
 
     // Scan a batch of files as a single continuous time dataset
@@ -339,8 +351,7 @@ export default function TriageDashboard({
                 currentLocation={currentLocation}
                 user={user}
                 onOpenLocationModal={onOpenLocationModal}
-                onOpenDefineModal={() => setShowDefineModal(true)}
-                onOpenExplorerModal={() => setShowExplorerModal(true)}
+                onOpenDefineModal={() => handleOpenDefineModal(null)}
                 onFilesSelected={handleFilesSelected}
                 fileInputRef={fileInputRef}
                 folderInputRef={folderInputRef}
@@ -371,7 +382,6 @@ export default function TriageDashboard({
                             setDragRawStart={setDragRawStart}
                             dragRawDeselect={dragRawDeselect}
                             setDragRawDeselect={setDragRawDeselect}
-                            onOpenExplorerModal={() => setShowExplorerModal(true)}
                             knownEvents={knownEvents}
                             activeDay={activeDay}
                             setActiveDay={setActiveDay}
@@ -386,7 +396,9 @@ export default function TriageDashboard({
                             knownEvents={knownEvents}
                             selectedKnownEventId={selectedKnownEventId}
                             onSelectKnownEvent={handleSelectKnownEvent}
-                            onOpenDefineEventModal={() => setShowDefineModal(true)}
+                            onOpenDefineEventModal={() => handleOpenDefineModal(null)}
+                            onEditKnownEvent={handleOpenDefineModal}
+                            onDeleteKnownEvent={handleDeleteKnownEvent}
                             onRefreshKnownEvents={fetchKnownEvents}
                             rawFiles={rawFiles}
                             loading={loadingEvents}
@@ -438,24 +450,17 @@ export default function TriageDashboard({
                 </div>
             </div>
 
-            {/* Define Known Event Modal */}
+            {/* Define / Edit Known Event Modal */}
             <DefineEventModal
                 show={showDefineModal}
-                onClose={() => setShowDefineModal(false)}
+                onClose={handleCloseDefineModal}
                 currentLocation={currentLocation}
                 locations={locations}
                 onOpenLocationModal={onOpenLocationModal}
                 user={user}
                 onEventCreated={handleEventCreated}
-            />
-
-            {/* Windows File Explorer Modal */}
-            <FileExplorerModal
-                show={showExplorerModal}
-                onClose={() => setShowExplorerModal(false)}
-                onImportFiles={handleImportFromExplorer}
-                currentLocation={currentLocation}
-                locations={locations}
+                eventToEdit={eventToEdit}
+                onDeleteEvent={handleDeleteKnownEvent}
             />
         </div>
     );
