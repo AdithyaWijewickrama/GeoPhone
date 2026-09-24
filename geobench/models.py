@@ -1,7 +1,19 @@
 from django.db import models
+from django.contrib.auth.models import User
+
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    google_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
+    avatar_url = models.URLField(max_length=1024, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Profile for {self.user.username}"
 
 
 class Location(models.Model):
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='locations')
     name = models.CharField(max_length=255, unique=True)
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
@@ -14,6 +26,7 @@ class Location(models.Model):
 
 class EventLabel(models.Model):
     id = models.CharField(max_length=255, primary_key=True)
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='event_labels')
     location = models.ForeignKey(Location, on_delete=models.SET_NULL, null=True, blank=True, related_name='event_labels')
     file_name = models.CharField(max_length=255)
     start_time = models.FloatField()
@@ -29,6 +42,7 @@ class EventLabel(models.Model):
 
 
 class FileBatch(models.Model):
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='file_batches')
     location = models.ForeignKey(Location, on_delete=models.SET_NULL, null=True, blank=True, related_name='file_batches')
     filename = models.CharField(max_length=255, unique=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
@@ -39,6 +53,7 @@ class FileBatch(models.Model):
 
 class AnomalyLabel(models.Model):
     id = models.CharField(max_length=255, primary_key=True)
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='anomaly_labels')
     location = models.ForeignKey(Location, on_delete=models.SET_NULL, null=True, blank=True, related_name='anomaly_labels')
     file_batch = models.ForeignKey(FileBatch, on_delete=models.CASCADE, related_name='labels')
     start_time = models.CharField(max_length=100)
@@ -57,6 +72,7 @@ class AnomalyLabel(models.Model):
 
 
 class KnownEvent(models.Model):
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='known_events')
     location = models.ForeignKey(Location, on_delete=models.SET_NULL, null=True, blank=True, related_name='known_events')
     name = models.CharField(max_length=255)
     start_time = models.FloatField()  # Timestamp in milliseconds

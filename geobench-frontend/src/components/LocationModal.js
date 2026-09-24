@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL || 'http://127.0.0.1:8000';
 
@@ -11,6 +12,7 @@ export default function LocationModal({
     onLocationCreated,
     onProceedToFileSelection
 }) {
+    const { user } = useAuth();
     const [name, setName] = useState('');
     const [latitude, setLatitude] = useState('');
     const [longitude, setLongitude] = useState('');
@@ -39,7 +41,8 @@ export default function LocationModal({
                     name: name.trim(),
                     latitude: latitude !== '' ? parseFloat(latitude) : null,
                     longitude: longitude !== '' ? parseFloat(longitude) : null,
-                    description: description.trim()
+                    description: description.trim(),
+                    user_id: user ? user.id : null
                 })
             });
 
@@ -129,6 +132,11 @@ export default function LocationModal({
                                                     <div className="d-flex justify-content-between align-items-start">
                                                         <div>
                                                             <strong className="text-light">{loc.name}</strong>
+                                                            {loc.user_name && (
+                                                                <span className="badge bg-secondary bg-opacity-50 text-muted ms-2 small" style={{ fontSize: '10px' }}>
+                                                                    by @{loc.user_name}
+                                                                </span>
+                                                            )}
                                                             {loc.latitude !== null && loc.longitude !== null && (
                                                                 <div className="text-muted small">
                                                                     ({loc.latitude?.toFixed(4)}, {loc.longitude?.toFixed(4)})

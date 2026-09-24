@@ -1,15 +1,265 @@
+import base64
 import json
+import re
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.models import User
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
 from .ml_model import process_geophone_csv, generate_event_plot, process_geophone_chunk
-from .models import Location, FileBatch, AnomalyLabel, KnownEvent, EventLabel
+from .models import Location, FileBatch, AnomalyLabel, KnownEvent, EventLabel, UserProfile
+
+
+def serialize_user(user):
+    if not user:
+        return None
+    avatar_url = None
+    google_id = None
+    if hasattr(user, 'profile'):
+        avatar_url = user.profile.avatar_url
+        google_id = user.profile.google_id
+
+    full_name = f"{user.first_name} {user.last_name}".strip()
+    return {
+        'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'first_name': user.first_name,
+        'last_name': user.last_name,
+        'display_name': full_name or user.username,
+        'avatar_url': avatar_url,
+        'google_id': google_id,
+        'is_google': bool(google_id),
+    }
+
+
+def decode_jwt_payload(token_str):
+    try:
+        parts = token_str.split('.')
+        if len(parts) >= 2:
+            payload_b64 = parts[1]
+            rem = len(payload_b64) % 4
+            if rem > 0:
+                payload_b64 += '=' * (4 - rem)
+            payload_json = base64.urlsafe_b64decode(payload_b64.encode('utf-8')).decode('utf-8')
+            return json.loads(payload_json)
+    except Exception as e:
+        print("ERROR(decode_jwt_payload): ",e)
+        pass
+    return None
+
+
+def get_request_user(request, data=None):
+    if request.user and request.user.is_authenticated:
+        return request.user
+
+    user_id = None
+    if isinstance(data, dict):
+        user_id = data.get('user_id')
+    if not user_id:
+        user_id = request.headers.get('X-User-Id')
+    if not user_id:
+        user_id = request.GET.get('user_id') or request.POST.get('user_id')
+
+    if user_id:
+        try:
+            return User.objects.filter(id=int(user_id)).first()
+        except (ValueError, TypeError):
+            pass
+    return None
+
+
+@csrf_exempt
+def auth_signup(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    try:
+        data = json.loads(request.body)
+        username = (data.get('username') or '').strip()
+        email = (data.get('email') or '').strip()
+        password = data.get('password') or ''
+        first_name = (data.get('first_name') or '').strip()
+        last_name = (data.get('last_name') or '').strip()
+
+        if not username:
+            return JsonResponse({'error': 'Username is required'}, status=400)
+        if len(username) < 3:
+            return JsonResponse({'error': 'Username must be at least 3 characters long'}, status=400)
+        if not password:
+            return JsonResponse({'error': 'Password is required'}, status=400)
+        if len(password) < 6:
+            return JsonResponse({'error': 'Password must be at least 6 characters long'}, status=400)
+
+        if User.objects.filter(username__iexact=username).exists():
+            return JsonResponse({'error': 'Username is already taken'}, status=400)
+
+        if email and User.objects.filter(email__iexact=email).exists():
+            return JsonResponse({'error': 'An account with this email already exists'}, status=400)
+
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=password,
+            first_name=first_name,
+            last_name=last_name
+        )
+        UserProfile.objects.get_or_create(user=user)
+
+        login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Signup successful',
+            'user': serialize_user(user)
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+
+@csrf_exempt
+def auth_login(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    try:
+        data = json.loads(request.body)
+        username_or_email = (data.get('username') or data.get('email') or '').strip()
+        password = data.get('password') or ''
+
+        if not username_or_email or not password:
+            return JsonResponse({'error': 'Username and password are required'}, status=400)
+
+        user = None
+        if '@' in username_or_email:
+            user_by_email = User.objects.filter(email__iexact=username_or_email).first()
+            if user_by_email:
+                user = authenticate(request, username=user_by_email.username, password=password)
+
+        if user is None:
+            user = authenticate(request, username=username_or_email, password=password)
+
+        if user is None:
+            return JsonResponse({'error': 'Invalid username or password'}, status=400)
+
+        login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Login successful',
+            'user': serialize_user(user)
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+
+@csrf_exempt
+def auth_logout(request):
+    logout(request)
+    return JsonResponse({'status': 'success', 'message': 'Logged out successfully'})
+
+
+@csrf_exempt
+def auth_me(request):
+    if request.user and request.user.is_authenticated:
+        return JsonResponse({
+            'authenticated': True,
+            'user': serialize_user(request.user)
+        })
+    return JsonResponse({
+        'authenticated': False,
+        'user': None
+    })
+
+
+@csrf_exempt
+def auth_google(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    try:
+        data = json.loads(request.body)
+        google_data = {}
+        credential = data.get('credential')
+        if credential:
+            decoded = decode_jwt_payload(credential)
+            if decoded:
+                google_data = decoded
+
+        email = (google_data.get('email') or data.get('email') or '').strip()
+        google_id = (google_data.get('sub') or data.get('google_id') or data.get('sub') or '').strip()
+        name = (google_data.get('name') or data.get('name') or '').strip()
+        picture = (google_data.get('picture') or data.get('picture') or data.get('avatar_url') or '').strip()
+        given_name = (google_data.get('given_name') or data.get('given_name') or '').strip()
+        family_name = (google_data.get('family_name') or data.get('family_name') or '').strip()
+
+        if not given_name and name:
+            parts = name.split()
+            given_name = parts[0]
+            if len(parts) > 1:
+                family_name = ' '.join(parts[1:])
+
+        if not email and not google_id:
+            return JsonResponse({'error': 'Valid Google credentials or email required'}, status=400)
+
+        user = None
+        if google_id:
+            profile = UserProfile.objects.filter(google_id=google_id).first()
+            if profile:
+                user = profile.user
+
+        if user is None and email:
+            user = User.objects.filter(email__iexact=email).first()
+
+        if user is not None:
+            # Update user profile
+            profile, _ = UserProfile.objects.get_or_create(user=user)
+            updated = False
+            if google_id and profile.google_id != google_id:
+                profile.google_id = google_id
+                updated = True
+            if picture and profile.avatar_url != picture:
+                profile.avatar_url = picture
+                updated = True
+            if updated:
+                profile.save()
+        else:
+            # Create new user
+            raw_base = email.split('@')[0] if email else (name.replace(' ', '_').lower() or f"google_{google_id[:6]}")
+            base_username = re.sub(r'[^a-zA-Z0-9_.]', '', raw_base) or 'google_user'
+            username = base_username
+            counter = 1
+            while User.objects.filter(username__iexact=username).exists():
+                username = f"{base_username}_{counter}"
+                counter += 1
+
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                first_name=given_name,
+                last_name=family_name
+            )
+            user.set_unusable_password()
+            user.save()
+            UserProfile.objects.create(
+                user=user,
+                google_id=google_id or None,
+                avatar_url=picture or None
+            )
+
+        login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Google authentication successful',
+            'user': serialize_user(user)
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
 
 
 @csrf_exempt
 def handle_locations(request):
     if request.method == 'GET':
-        locations = Location.objects.all().order_by('-created_at')
+        user_id = request.GET.get('user_id')
+        locations = Location.objects.select_related('user').all().order_by('-created_at')
+        if user_id and user_id != 'all':
+            locations = locations.filter(user_id=user_id)
+
         data = [
             {
                 'id': loc.id,
@@ -17,7 +267,9 @@ def handle_locations(request):
                 'latitude': loc.latitude,
                 'longitude': loc.longitude,
                 'description': loc.description,
-                'created_at': loc.created_at.isoformat()
+                'created_at': loc.created_at.isoformat(),
+                'user_id': loc.user_id,
+                'user_name': loc.user.username if loc.user else None
             }
             for loc in locations
         ]
@@ -33,6 +285,7 @@ def handle_locations(request):
             lat = data.get('latitude')
             lon = data.get('longitude')
             desc = data.get('description', '')
+            user = get_request_user(request, data)
 
             lat_val = float(lat) if lat is not None and str(lat).strip() != '' else None
             lon_val = float(lon) if lon is not None and str(lon).strip() != '' else None
@@ -42,7 +295,8 @@ def handle_locations(request):
                 defaults={
                     'latitude': lat_val,
                     'longitude': lon_val,
-                    'description': desc
+                    'description': desc,
+                    'user': user
                 }
             )
             if not created:
@@ -52,6 +306,8 @@ def handle_locations(request):
                     loc.longitude = lon_val
                 if desc:
                     loc.description = desc
+                if user and not loc.user:
+                    loc.user = user
                 loc.save()
 
             return JsonResponse({
@@ -61,6 +317,8 @@ def handle_locations(request):
                 'longitude': loc.longitude,
                 'description': loc.description,
                 'created_at': loc.created_at.isoformat(),
+                'user_id': loc.user_id,
+                'user_name': loc.user.username if loc.user else None,
                 'status': 'success'
             })
         except Exception as e:
@@ -85,6 +343,7 @@ def save_label(request):
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
+            user = get_request_user(request, data)
 
             # Generate deterministic composite ID
             file_name = data['file']
@@ -95,10 +354,15 @@ def save_label(request):
             location_id = data.get('location_id')
             location = Location.objects.filter(id=location_id).first() if location_id else None
 
-            file_batch, _ = FileBatch.objects.get_or_create(filename=file_name)
+            file_batch, _ = FileBatch.objects.get_or_create(
+                filename=file_name,
+                defaults={'user': user, 'location': location}
+            )
             if location and file_batch.location != location:
                 file_batch.location = location
-                file_batch.save()
+            if user and not file_batch.user:
+                file_batch.user = user
+            file_batch.save()
 
             # If user cleared the label, remove it
             if not data.get('label') and not data.get('note'):
@@ -106,9 +370,10 @@ def save_label(request):
                 return JsonResponse({'status': 'cleared'})
 
             # Update or create the event
-            AnomalyLabel.objects.update_or_create(
+            label_obj, _ = AnomalyLabel.objects.update_or_create(
                 id=event_id,
                 defaults={
+                    'user': user,
                     'file_batch': file_batch,
                     'location': location,
                     'start_time': str(data['startTime']),
@@ -124,6 +389,7 @@ def save_label(request):
             if data.get('save_as_known_event'):
                 event_name = data.get('label') or 'Labeled Event'
                 KnownEvent.objects.create(
+                    user=user,
                     name=event_name,
                     start_time=data['startTime'],
                     end_time=data['endTime'],
@@ -131,7 +397,12 @@ def save_label(request):
                     note=data.get('note', '')
                 )
 
-            return JsonResponse({'status': 'success', 'id': event_id})
+            return JsonResponse({
+                'status': 'success',
+                'id': event_id,
+                'user_id': user.id if user else None,
+                'user_name': user.username if user else None
+            })
         except Exception as e:
             print(f"SAVE LABEL ERROR: {str(e)}")
             return JsonResponse({'error': str(e)}, status=400)
@@ -142,9 +413,12 @@ def save_label(request):
 def get_labels_api(request):
     if request.method == 'GET':
         location_id = request.GET.get('location_id')
-        qs = AnomalyLabel.objects.select_related('file_batch', 'location', 'file_batch__location').all()
+        user_id = request.GET.get('user_id')
+        qs = AnomalyLabel.objects.select_related('file_batch', 'location', 'file_batch__location', 'user').all()
         if location_id and location_id != 'all':
             qs = qs.filter(location_id=location_id) | qs.filter(file_batch__location_id=location_id)
+        if user_id and user_id != 'all':
+            qs = qs.filter(user_id=user_id)
         qs = qs.order_by('-saved_at')
 
         results = []
@@ -160,7 +434,10 @@ def get_labels_api(request):
                 'label': l.label_type,
                 'note': l.note or '',
                 'location_name': loc_name,
-                'saved_at': l.saved_at.isoformat() if l.saved_at else ''
+                'location_id': l.location_id or (l.file_batch.location_id if l.file_batch else None),
+                'saved_at': l.saved_at.isoformat() if l.saved_at else '',
+                'user_id': l.user_id,
+                'user_name': l.user.username if l.user else None
             })
         return JsonResponse(results, safe=False)
     return JsonResponse({'error': 'Invalid method'}, status=405)
@@ -187,6 +464,7 @@ def process_chunk_api(request):
         files = request.FILES.getlist('files')
         filenames = [f.name for f in files]
         location_id = request.POST.get('location_id')
+        user = get_request_user(request)
 
         if not files:
             return JsonResponse({'error': 'No files uploaded'}, status=400)
@@ -194,10 +472,15 @@ def process_chunk_api(request):
         location = Location.objects.filter(id=location_id).first() if location_id else None
 
         for fname in filenames:
-            fb, _ = FileBatch.objects.get_or_create(filename=fname)
+            fb, created = FileBatch.objects.get_or_create(
+                filename=fname,
+                defaults={'user': user, 'location': location}
+            )
             if location and fb.location != location:
                 fb.location = location
-                fb.save()
+            if user and not fb.user:
+                fb.user = user
+            fb.save()
 
         result = process_geophone_chunk(files, filenames)
 
@@ -224,9 +507,12 @@ def process_chunk_api(request):
 def handle_known_events(request):
     if request.method == 'GET':
         location_id = request.GET.get('location_id')
-        qs = KnownEvent.objects.select_related('location').all()
+        user_id = request.GET.get('user_id')
+        qs = KnownEvent.objects.select_related('location', 'user').all()
         if location_id and location_id != 'all':
             qs = qs.filter(location_id=location_id)
+        if user_id and user_id != 'all':
+            qs = qs.filter(user_id=user_id)
 
         events = [
             {
@@ -236,7 +522,9 @@ def handle_known_events(request):
                 'end_time': e.end_time,
                 'note': e.note or '',
                 'location_id': e.location_id,
-                'location_name': e.location.name if e.location else None
+                'location_name': e.location.name if e.location else None,
+                'user_id': e.user_id,
+                'user_name': e.user.username if e.user else None
             }
             for e in qs.order_by('start_time')
         ]
@@ -254,6 +542,7 @@ def handle_known_events(request):
             location_id = data.get('location_id')
             note = data.get('note', '')
             force = data.get('force', False)
+            user = get_request_user(request, data)
 
             # Check collision:
             collisions_qs = KnownEvent.objects.filter(start_time__lt=end_time, end_time__gt=start_time)
@@ -279,6 +568,7 @@ def handle_known_events(request):
 
             location = Location.objects.filter(id=location_id).first() if location_id else None
             event = KnownEvent.objects.create(
+                user=user,
                 name=name,
                 start_time=start_time,
                 end_time=end_time,
@@ -292,6 +582,8 @@ def handle_known_events(request):
                 'end_time': event.end_time,
                 'location_id': event.location_id,
                 'location_name': event.location.name if event.location else None,
+                'user_id': event.user_id,
+                'user_name': event.user.username if event.user else None,
                 'note': event.note,
                 'status': 'success'
             })

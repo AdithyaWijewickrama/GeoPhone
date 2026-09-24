@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Chart from 'chart.js/auto';
+import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import {
     formatDuration,
     formatDateTime,
@@ -35,6 +37,7 @@ export default function TriageDashboard({
     onLocationCreated,
     onSelectLocation
 }) {
+    const { user } = useAuth();
     const [scanning, setScanning] = useState(false);
     const [knownEvents, setKnownEvents] = useState([]);
 
@@ -65,17 +68,21 @@ export default function TriageDashboard({
     // Drag-to-select tracking states
     const [isDraggingRaw, setIsDraggingRaw] = useState(false);
     const [dragRawStart, setDragRawStart] = useState(null);
+    const [dragRawDeselect, setDragRawDeselect] = useState(false);
 
     const [isDraggingChunks, setIsDraggingChunks] = useState(false);
     const [dragChunkStart, setDragChunkStart] = useState(null);
+    const [dragChunkDeselect, setDragChunkDeselect] = useState(false);
 
     // Stop drag globally on window mouseup
     useEffect(() => {
         const handleGlobalMouseUp = () => {
             setIsDraggingRaw(false);
             setDragRawStart(null);
+            setDragRawDeselect(false);
             setIsDraggingChunks(false);
             setDragChunkStart(null);
+            setDragChunkDeselect(false);
         };
         window.addEventListener('mouseup', handleGlobalMouseUp);
         return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
@@ -252,7 +259,8 @@ export default function TriageDashboard({
                     end_time,
                     location_id: locId ? parseInt(locId) : null,
                     note: newEvent.note,
-                    force: overrideForce || forceDefineSave
+                    force: overrideForce || forceDefineSave,
+                    user_id: user ? user.id : null
                 })
             });
             const data = await res.json();
@@ -290,6 +298,9 @@ export default function TriageDashboard({
         filesToScan.forEach(f => formData.append('files', f));
         if (currentLocation) {
             formData.append('location_id', currentLocation.id);
+        }
+        if (user) {
+            formData.append('user_id', user.id);
         }
 
         try {
@@ -390,18 +401,19 @@ export default function TriageDashboard({
         if (e.button !== 0) return;
         setIsDraggingRaw(true);
         setDragRawStart(idx);
+        const isCurrentlySelected = selectedRawIndices.has(idx);
+        const willDeselect = isCurrentlySelected && !e.shiftKey;
+        setDragRawDeselect(willDeselect);
+
         setSelectedRawIndices(prev => {
             const next = new Set(prev);
             if (e.shiftKey && dragRawStart !== null) {
                 const [low, high] = [Math.min(dragRawStart, idx), Math.max(dragRawStart, idx)];
                 for (let i = low; i <= high; i++) next.add(i);
-            } else if (e.ctrlKey || e.metaKey) {
-                if (next.has(idx)) next.delete(idx);
-                else next.add(idx);
+            } else if (willDeselect) {
+                next.delete(idx);
             } else {
-                if (!next.has(idx)) {
-                    next.add(idx);
-                }
+                next.add(idx);
             }
             return next;
         });
@@ -413,7 +425,11 @@ export default function TriageDashboard({
         setSelectedRawIndices(prev => {
             const next = new Set(prev);
             for (let i = low; i <= high; i++) {
-                next.add(i);
+                if (dragRawDeselect) {
+                    next.delete(i);
+                } else {
+                    next.add(i);
+                }
             }
             return next;
         });
@@ -469,6 +485,10 @@ export default function TriageDashboard({
         if (e.button !== 0) return;
         setIsDraggingChunks(true);
         setDragChunkStart(idx);
+        const isCurrentlySelected = selectedChunkKeys.has(key);
+        const willDeselect = isCurrentlySelected && !e.shiftKey;
+        setDragChunkDeselect(willDeselect);
+
         setSelectedChunkKeys(prev => {
             const next = new Set(prev);
             if (e.shiftKey && dragChunkStart !== null) {
@@ -476,13 +496,10 @@ export default function TriageDashboard({
                 for (let i = low; i <= high; i++) {
                     if (chunks[i]) next.add(chunks[i].key);
                 }
-            } else if (e.ctrlKey || e.metaKey) {
-                if (next.has(key)) next.delete(key);
-                else next.add(key);
+            } else if (willDeselect) {
+                next.delete(key);
             } else {
-                if (!next.has(key)) {
-                    next.add(key);
-                }
+                next.add(key);
             }
             return next;
         });
@@ -494,11 +511,29 @@ export default function TriageDashboard({
         setSelectedChunkKeys(prev => {
             const next = new Set(prev);
             for (let i = low; i <= high; i++) {
-                if (chunks[i]) next.add(chunks[i].key);
+                if (chunks[i]) {
+                    if (dragChunkDeselect) {
+                        next.delete(chunks[i].key);
+                    } else {
+                        next.add(chunks[i].key);
+                    }
+                }
             }
             return next;
         });
     };
+
+    // Keep activeChunkData in sync when a single chunk is selected
+    useEffect(() => {
+        if (selectedChunkKeys.size === 1) {
+            const key = Array.from(selectedChunkKeys)[0];
+            const singleChunk = chunks.find(c => c.key === key);
+            if (singleChunk) {
+                setSelectedKey(singleChunk.key);
+                setActiveChunkData(singleChunk);
+            }
+        }
+    }, [selectedChunkKeys, chunks, setSelectedKey]);
 
     const handleAnalyzeChunkSelection = async () => {
         if (!chunkSelectionInfo) return;
@@ -515,18 +550,9 @@ export default function TriageDashboard({
             const batchName = `Batch of ${chunkSelectionInfo.chunkCount} Chunks: ${chunkSelectionInfo.dtStr}`;
             const scanned = await scanFilesAsChunk(chunkSelectionInfo.files, batchName);
             setActiveChunkData(scanned);
+            setSelectedKey(scanned?.key || null);
         }
         setAnalyzingSelection(false);
-    };
-
-    const handleSelectSingleChunk = async (chunk) => {
-        setSelectedKey(chunk.key);
-        setSelectedChunkKeys(new Set([chunk.key]));
-        if (chunk.status === 'pending') {
-            setActiveChunkData(chunk);
-        } else {
-            setActiveChunkData(chunk);
-        }
     };
 
     // Save label callback
@@ -552,7 +578,8 @@ export default function TriageDashboard({
                 label,
                 note,
                 location_id: currentLocation ? currentLocation.id : null,
-                save_as_known_event: saveAsKnownEvent
+                save_as_known_event: saveAsKnownEvent,
+                user_id: user ? user.id : null
             })
         });
 
@@ -590,6 +617,18 @@ export default function TriageDashboard({
                             </span>
                         )}
                     </button>
+
+                    {/* Operator Badge */}
+                    {user && (
+                        <div
+                            className="badge bg-secondary bg-opacity-50 text-light px-2 py-1 d-flex align-items-center gap-1 border border-secondary"
+                            title={`Operator user account #${user.id}`}
+                        >
+                            <span>👤</span>
+                            <span className="text-info fw-bold">{user.display_name || user.username}</span>
+                            <span className="text-muted small">(#{user.id})</span>
+                        </div>
+                    )}
                 </div>
 
                 <div className="d-flex flex-wrap align-items-center gap-2">
@@ -807,9 +846,18 @@ export default function TriageDashboard({
                                     🗂️ List 2: Chunks ({chunks.length})
                                 </span>
                                 {selectedChunkKeys.size > 0 && (
-                                    <span className="badge bg-info text-dark">
-                                        {selectedChunkKeys.size} selected
-                                    </span>
+                                    <div className="d-flex align-items-center gap-1">
+                                        <span className="badge bg-info text-dark">
+                                            {selectedChunkKeys.size} selected
+                                        </span>
+                                        <button
+                                            className="btn btn-outline-secondary btn-sm py-0 px-1"
+                                            style={{ fontSize: '0.75rem' }}
+                                            onClick={() => setSelectedChunkKeys(new Set())}
+                                        >
+                                            Clear
+                                        </button>
+                                    </div>
                                 )}
                             </div>
 
@@ -848,7 +896,6 @@ export default function TriageDashboard({
                                                 className={`list-group-item list-group-item-action bg-dark text-light border-secondary p-2 mb-1 rounded selectable-item ${isSelected ? 'selected' : ''} ${isActive ? 'border-warning border-2' : ''}`}
                                                 onMouseDown={(e) => handleChunkMouseDown(c.key, idx, e)}
                                                 onMouseEnter={() => handleChunkMouseEnter(idx)}
-                                                onClick={() => handleSelectSingleChunk(c)}
                                             >
                                                 <div className="d-flex w-100 justify-content-between align-items-center">
                                                     <div>
@@ -913,6 +960,7 @@ export default function TriageDashboard({
                             </div>
                         ) : (
                             <ChunkDetail
+                                key={activeChunkData.key || activeChunkData.name || 'active-chunk'}
                                 chunk={activeChunkData}
                                 labels={labels}
                                 onSaveLabel={handleSaveLabel}
@@ -1078,6 +1126,7 @@ export default function TriageDashboard({
 }
 
 function ChunkDetail({ chunk, labels, onSaveLabel, setLabels, currentLocation, knownEvents }) {
+    const { theme } = useTheme();
     const [threshold, setThreshold] = useState(DEFAULT_THRESHOLD);
     const chartRef = useRef(null);
     const canvasRef = useRef(null);
@@ -1088,6 +1137,12 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels, currentLocation, k
     const [selectedTableEvents, setSelectedTableEvents] = useState(new Set());
     const [isDraggingTable, setIsDraggingTable] = useState(false);
     const [dragTableStart, setDragTableStart] = useState(null);
+    const [dragTableDeselect, setDragTableDeselect] = useState(false);
+
+    // Reset table selection whenever active chunk or raw data changes
+    useEffect(() => {
+        setSelectedTableEvents(new Set());
+    }, [chunk?.key, chunk?.raw]);
 
     // Label Event Popup Modal State
     const [showLabelModal, setShowLabelModal] = useState(false);
@@ -1103,6 +1158,7 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels, currentLocation, k
         const handleGlobalMouseUp = () => {
             setIsDraggingTable(false);
             setDragTableStart(null);
+            setDragTableDeselect(false);
         };
         window.addEventListener('mouseup', handleGlobalMouseUp);
         return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
@@ -1123,6 +1179,16 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels, currentLocation, k
         const scoreData = chunk.raw.blocks.map(b => ({ x: (b.time - startTime) / 1000, y: b.score }));
         const xMax = (chunk.endTime - startTime) / 1000;
 
+        const isModernDark = theme === 'modern-dark';
+        const isModernWhite = theme === 'modern-white';
+
+        const voltColor = isModernDark ? '#38bdf8' : isModernWhite ? '#0284c7' : '#348abd';
+        const scoreColor = isModernDark ? '#f43f5e' : isModernWhite ? '#ea580c' : '#d9604a';
+        const threshColor = isModernDark ? '#94a3b8' : isModernWhite ? '#64748b' : '#9c9080';
+        const axisColor = isModernDark ? '#94a3b8' : isModernWhite ? '#64748b' : '#9c9080';
+        const gridColor = isModernDark ? 'rgba(255, 255, 255, 0.08)' : isModernWhite ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.05)';
+        const legendColor = isModernDark ? '#f8fafc' : isModernWhite ? '#0f172a' : '#ece5d6';
+
         chartRef.current = new Chart(canvasRef.current, {
             type: 'line',
             data: {
@@ -1131,7 +1197,7 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels, currentLocation, k
                         label: 'Voltage (mV)',
                         data: waveData,
                         yAxisID: 'y',
-                        borderColor: '#348abd',
+                        borderColor: voltColor,
                         borderWidth: 1,
                         pointRadius: 0,
                         tension: 0
@@ -1140,7 +1206,7 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels, currentLocation, k
                         label: 'Anomaly Score',
                         data: scoreData,
                         yAxisID: 'y1',
-                        borderColor: '#d9604a',
+                        borderColor: scoreColor,
                         borderDash: [4, 3],
                         borderWidth: 1.5,
                         pointRadius: 0
@@ -1149,7 +1215,7 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels, currentLocation, k
                         label: 'Threshold Limit',
                         data: [{ x: 0, y: threshold }, { x: xMax, y: threshold }],
                         yAxisID: 'y1',
-                        borderColor: '#9c9080',
+                        borderColor: threshColor,
                         borderDash: [2, 2],
                         borderWidth: 1,
                         pointRadius: 0
@@ -1163,26 +1229,31 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels, currentLocation, k
                 scales: {
                     x: {
                         type: 'linear',
-                        title: { display: true, text: 'Time (Seconds)', color: '#9c9080' }
+                        title: { display: true, text: 'Time (Seconds)', color: axisColor },
+                        ticks: { color: axisColor },
+                        grid: { color: gridColor }
                     },
                     y: {
                         position: 'left',
-                        title: { display: true, text: 'Voltage (mV)', color: '#348abd' }
+                        title: { display: true, text: 'Voltage (mV)', color: voltColor },
+                        ticks: { color: axisColor },
+                        grid: { color: gridColor }
                     },
                     y1: {
                         position: 'right',
-                        title: { display: true, text: 'Score', color: '#d9604a' },
+                        title: { display: true, text: 'Score', color: scoreColor },
+                        ticks: { color: axisColor },
                         grid: { drawOnChartArea: false }
                     }
                 },
                 plugins: {
-                    legend: { display: true, labels: { color: '#ece5d6' } }
+                    legend: { display: true, labels: { color: legendColor } }
                 }
             }
         });
 
         return () => chartRef.current?.destroy();
-    }, [chunk, threshold]);
+    }, [chunk, threshold, theme]);
 
     if (chunk.status === 'corrupted' || !chunk.raw) {
         return (
@@ -1200,16 +1271,19 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels, currentLocation, k
         if (e.button !== 0) return;
         setIsDraggingTable(true);
         setDragTableStart(idx);
+        const isCurrentlySelected = selectedTableEvents.has(idx);
+        const willDeselect = isCurrentlySelected && !e.shiftKey;
+        setDragTableDeselect(willDeselect);
+
         setSelectedTableEvents(prev => {
             const next = new Set(prev);
             if (e.shiftKey && dragTableStart !== null) {
                 const [low, high] = [Math.min(dragTableStart, idx), Math.max(dragTableStart, idx)];
                 for (let i = low; i <= high; i++) next.add(i);
-            } else if (e.ctrlKey || e.metaKey) {
-                if (next.has(idx)) next.delete(idx);
-                else next.add(idx);
+            } else if (willDeselect) {
+                next.delete(idx);
             } else {
-                if (!next.has(idx)) next.add(idx);
+                next.add(idx);
             }
             return next;
         });
@@ -1220,16 +1294,22 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels, currentLocation, k
         const [low, high] = [Math.min(dragTableStart, idx), Math.max(dragTableStart, idx)];
         setSelectedTableEvents(prev => {
             const next = new Set(prev);
-            for (let i = low; i <= high; i++) next.add(i);
+            for (let i = low; i <= high; i++) {
+                if (dragTableDeselect) {
+                    next.delete(i);
+                } else {
+                    next.add(i);
+                }
+            }
             return next;
         });
     };
 
     const handleSelectAll = (e) => {
-        if (e.target.checked) {
-            setSelectedTableEvents(new Set(currentEvents.map((_, i) => i)));
-        } else {
+        if (selectedTableEvents.size > 0) {
             setSelectedTableEvents(new Set());
+        } else {
+            setSelectedTableEvents(new Set(currentEvents.map((_, i) => i)));
         }
     };
 
@@ -1363,7 +1443,7 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels, currentLocation, k
                         />
                     </div>
                 </div>
-                <div className="card-body" style={{ height: '350px', backgroundColor: '#1e1812' }}>
+                <div className="card-body" style={{ height: '350px' }}>
                     <canvas ref={canvasRef}></canvas>
                 </div>
             </div>
@@ -1371,10 +1451,19 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels, currentLocation, k
             {/* Flagged Events Table Card */}
             <div className="card bg-dark border-secondary">
                 <div className="card-header border-secondary text-muted small d-flex flex-wrap justify-content-between align-items-center gap-2">
-                    <span>
+                    <span className="d-flex align-items-center">
                         Flagged Events ({currentEvents.length})
                         {selectedTableEvents.size > 0 && (
-                            <span className="text-warning ms-2">({selectedTableEvents.size} rows selected)</span>
+                            <>
+                                <span className="text-warning ms-2">({selectedTableEvents.size} rows selected)</span>
+                                <button
+                                    className="btn btn-outline-secondary btn-sm py-0 px-2 ms-2"
+                                    style={{ fontSize: '0.75rem' }}
+                                    onClick={() => setSelectedTableEvents(new Set())}
+                                >
+                                    Deselect All
+                                </button>
+                            </>
                         )}
                     </span>
 
@@ -1431,16 +1520,18 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels, currentLocation, k
                                             onMouseDown={(e) => handleTableMouseDown(idx, e)}
                                             onMouseEnter={() => handleTableMouseEnter(idx)}
                                         >
-                                            <td onClick={(e) => e.stopPropagation()}>
+                                            <td onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
                                                 <input
                                                     type="checkbox"
                                                     className="form-check-input border-secondary bg-dark"
                                                     checked={isSelected}
-                                                    onChange={(e) => {
-                                                        const next = new Set(selectedTableEvents);
-                                                        if (e.target.checked) next.add(idx);
-                                                        else next.delete(idx);
-                                                        setSelectedTableEvents(next);
+                                                    onChange={() => {
+                                                        setSelectedTableEvents(prev => {
+                                                            const next = new Set(prev);
+                                                            if (next.has(idx)) next.delete(idx);
+                                                            else next.add(idx);
+                                                            return next;
+                                                        });
                                                     }}
                                                 />
                                             </td>
@@ -1448,7 +1539,7 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels, currentLocation, k
                                             <td>{formatDateTime(ev.startTime)}</td>
                                             <td>{formatDuration(ev.endTime - ev.startTime)}</td>
                                             <td className="text-danger fw-bold">{ev.peakScore.toFixed(1)}</td>
-                                            <td onClick={(e) => e.stopPropagation()}>
+                                            <td onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
                                                 <select
                                                     className="form-select form-select-sm bg-dark text-light border-secondary"
                                                     value={saved.label}
@@ -1461,7 +1552,7 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels, currentLocation, k
                                                     ))}
                                                 </select>
                                             </td>
-                                            <td onClick={(e) => e.stopPropagation()}>
+                                            <td onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
                                                 <input
                                                     type="text"
                                                     className="form-control form-control-sm bg-dark text-light border-secondary"
@@ -1474,7 +1565,7 @@ function ChunkDetail({ chunk, labels, onSaveLabel, setLabels, currentLocation, k
                                                     }))}
                                                 />
                                             </td>
-                                            <td onClick={(e) => e.stopPropagation()}>
+                                            <td onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
                                                 <button
                                                     className="btn btn-outline-info btn-sm py-0 px-2"
                                                     style={{ fontSize: '0.75rem' }}
