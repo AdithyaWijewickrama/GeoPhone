@@ -1,122 +1,156 @@
-/* 1. Import Original Custom Fonts */
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
-
-/* 2. Original Color Palette Variables */
+/* ==========================================================================
+   Global Theme Settings
+   ========================================================================== */
 :root {
-    --bg: #16120e;
-    --panel: #1e1812;
-    --panel-2: #241d15;
-    --border: #372c20;
-    --paper: #f2ecdc;
-    --text: #ece5d6;
-    --text-muted: #9c9080;
-    --amber: #dba043;
-    --amber-dim: #7a5c2a;
-    --red: #d9604a;
-    --red-dim: #6e3226;
-    --green: #6fae7f;
+  --geo-bg-dark: #16120e;
+  --geo-bg-card: #1e1812;
+  --geo-border: #372c20;
+  --geo-text-main: #ffffff; /* Brightened to pure white for maximum readability */
+  --geo-text-muted: #b0a89f; /* Brightened for better contrast */
+  --geo-accent-blue: #348abd;
+  --geo-accent-orange: #d9604a;
+  --geo-accent-yellow: #f1c40f;
 }
 
-/* 3. Global Typography & Background */
 body {
-    background-color: var(--bg) !important;
-    color: var(--text) !important;
-    font-family: 'IBM Plex Sans', -apple-system, sans-serif !important;
+  background-color: var(--geo-bg-dark) !important;
+  color: var(--geo-text-main) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-.font-monospace {
-    font-family: 'IBM Plex Mono', ui-monospace, monospace !important;
-}
-
-/* 4. Bootstrap Class Overrides */
-.bg-dark {
-    background-color: var(--panel) !important;
-}
-
-.text-light {
-    color: var(--text) !important;
+/* Force headings, paragraphs, and lists to use the light text color */
+h1, h2, h3, h4, h5, h6, p, label, li, span, div {
+  color: inherit;
 }
 
 .text-muted {
-    color: var(--text-muted) !important;
+  color: var(--geo-text-muted) !important;
 }
 
-.text-warning {
-    color: var(--amber) !important;
+/* ==========================================================================
+   Navigation Bar
+   ========================================================================== */
+.navbar {
+  background-color: var(--geo-bg-dark) !important;
+  border-bottom: 2px solid var(--geo-border) !important;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
 }
 
-.text-danger {
-    color: var(--red) !important;
+.navbar-brand {
+  color: var(--geo-accent-yellow) !important;
+  letter-spacing: 0.5px;
 }
 
-.border-secondary {
-    border-color: var(--border) !important;
+.nav-link {
+  color: var(--geo-text-muted) !important;
 }
 
-/* 5. Custom Button Styling */
+.nav-link:hover,
+.nav-link.active {
+  color: var(--geo-text-main) !important;
+}
+
+/* ==========================================================================
+   Cards & Layout
+   ========================================================================== */
+.card {
+  background-color: var(--geo-bg-card) !important;
+  border: 1px solid var(--geo-border) !important;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  color: var(--geo-text-main) !important;
+}
+
+.card-header {
+  background-color: rgba(0, 0, 0, 0.2) !important;
+  border-bottom: 1px solid var(--geo-border) !important;
+  color: var(--geo-text-main) !important;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   Tables
+   ========================================================================== */
+.table {
+  color: var(--geo-text-main) !important;
+}
+
+.table-dark {
+  background-color: transparent !important;
+}
+
+.table th, .table td {
+  color: var(--geo-text-main) !important;
+  background-color: transparent !important;
+}
+
+.table thead th {
+  border-bottom: 2px solid var(--geo-border) !important;
+  color: var(--geo-text-muted) !important;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.table tbody tr {
+  border-bottom: 1px solid rgba(55, 44, 32, 0.5) !important;
+}
+
+.table tbody tr:hover td {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Selected/Labeled Row State */
+.table-success td, .table-success th {
+  background-color: rgba(52, 138, 189, 0.2) !important;
+  color: var(--geo-text-main) !important;
+}
+
+/* ==========================================================================
+   Forms, Inputs & Buttons
+   ========================================================================== */
+.form-control, .form-select {
+  background-color: #0c0a08 !important;
+  border: 1px solid var(--geo-border) !important;
+  color: var(--geo-text-main) !important;
+}
+
+.form-control:focus, .form-select:focus {
+  border-color: var(--geo-accent-blue) !important;
+  box-shadow: 0 0 0 0.25rem rgba(52, 138, 189, 0.25) !important;
+}
+
+.form-control::placeholder {
+  color: var(--geo-text-muted) !important;
+}
+
 .btn-warning {
-    background-color: var(--amber) !important;
-    border-color: var(--amber) !important;
-    color: #201808 !important;
+  background-color: var(--geo-accent-yellow) !important;
+  border-color: var(--geo-accent-yellow) !important;
+  color: #000 !important;
+  font-weight: 600;
 }
 
 .btn-warning:hover {
-    background-color: #c98f38 !important;
-    border-color: #c98f38 !important;
-}
-
-.btn-warning:disabled {
-    opacity: 0.5;
-}
-
-.btn-outline-light {
-    border-color: var(--border) !important;
-    color: var(--text) !important;
-    background-color: var(--panel-2) !important;
-}
-
-.btn-outline-light:hover {
-    border-color: var(--amber-dim) !important;
-    color: var(--paper) !important;
-    background-color: var(--panel-2) !important;
-}
-
-.btn-outline-danger {
-    border-color: var(--red-dim) !important;
-    color: #e5b3a8 !important;
-}
-
-.btn-outline-danger:hover {
-    border-color: var(--red) !important;
-    color: var(--red) !important;
-    background-color: transparent !important;
-}
-
-/* 6. Sidebar & Inputs */
-.list-group-item.bg-dark:hover {
-    background-color: var(--panel-2) !important;
-    cursor: pointer;
-}
-
-.border-warning {
-    border-color: var(--amber) !important;
+  background-color: #f3ce34 !important;
+  border-color: #f3ce34 !important;
 }
 
 input[type=range] {
-    accent-color: var(--red);
+  accent-color: var(--geo-accent-orange);
 }
 
-/* 7. Custom Scrollbar Integration */
+/* ==========================================================================
+   Scrollbars (Webkit)
+   ========================================================================== */
 ::-webkit-scrollbar {
-    width: 9px;
-    height: 9px;
+  width: 10px;
+  height: 10px;
 }
-
 ::-webkit-scrollbar-track {
-    background: transparent;
+  background: var(--geo-bg-dark);
 }
-
 ::-webkit-scrollbar-thumb {
-    background: var(--border);
-    border-radius: 5px;
+  background: var(--geo-border);
+  border-radius: 5px;
 }

@@ -19,7 +19,7 @@ __pycache__/
 # Local Django settings / sensitive data
 db.sqlite3
 db.sqlite3-journal
-.env
+geobench/.env
 *.env
 local_settings.py
 
@@ -44,7 +44,7 @@ dist/
 build/
 
 # Local environment variables
-.env.local
+geobench-frontend/.env
 .env.development.local
 .env.test.local
 .env.production.local
