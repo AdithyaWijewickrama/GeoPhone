@@ -154,3 +154,47 @@ input[type=range] {
   background: var(--geo-border);
   border-radius: 5px;
 }
+
+/* ==========================================================================
+   Effortless Drag Selection & Selection Styles
+   ========================================================================== */
+.user-select-none {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.selectable-item {
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.selectable-item.selected {
+  background-color: rgba(52, 138, 189, 0.25) !important;
+  border-left: 4px solid var(--geo-accent-blue) !important;
+}
+
+.selectable-row {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease;
+}
+
+.selectable-row.selected-row td {
+  background-color: rgba(241, 196, 15, 0.18) !important;
+  color: #ffffff !important;
+}
+
+.drag-handle {
+  cursor: grab;
+  opacity: 0.6;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.badge-location {
+  background-color: #27211a;
+  border: 1px solid var(--geo-border);
+  color: var(--geo-accent-yellow);
+}

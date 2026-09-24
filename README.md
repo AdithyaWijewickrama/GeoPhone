@@ -58,4 +58,21 @@ python -m venv .venv
 # On Mac/Linux:
 source .venv/bin/activate
 
-pip install django pandas numpy scipy matplotlib django-cors-headers
+pip install -r requirements.txt
+
+# Run migrations:
+python manage.py migrate
+
+# Start backend server:
+python manage.py runserver
+```
+
+### 2. Frontend (React)
+
+Navigate to `geobench-frontend` and start the React development server:
+
+```bash
+cd geobench-frontend
+npm install
+npm start
+```
