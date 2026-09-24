@@ -5,11 +5,15 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
     const { loginWithGoogle } = useAuth();
     const [loading, setLoading] = useState(false);
     const [showDevModal, setShowDevModal] = useState(false);
+    const [modalError, setModalError] = useState(null);
     const [devEmail, setDevEmail] = useState('');
     const [devName, setDevName] = useState('');
+    const [gisReady, setGisReady] = useState(false);
     const googleButtonRef = useRef(null);
 
     const googleClientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+    const isSignUp = text.toLowerCase().includes('sign up') || text.toLowerCase().includes('signup');
+    const isContinue = text.toLowerCase().includes('continue');
 
     const handleGoogleResponse = useCallback(async (response) => {
         setLoading(true);
@@ -18,7 +22,8 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
             const user = await loginWithGoogle({ credential: response.credential });
             if (onSuccess) onSuccess(user);
         } catch (err) {
-            if (onError) onError(err.message || 'Google authentication failed');
+            const errorMsg = typeof err === 'string' ? err : (err?.message || 'Google authentication failed');
+            if (onError) onError(errorMsg);
         } finally {
             setLoading(false);
         }
@@ -26,24 +31,49 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
 
     useEffect(() => {
         // Initialize the standard Google Identity Services button if ref is rendered and client ID exists
-        if (!compact && window.google?.accounts?.id && googleClientId && googleButtonRef.current) {
-            try {
-                window.google.accounts.id.initialize({
-                    client_id: googleClientId,
-                    callback: handleGoogleResponse
-                });
+        if (compact || !googleClientId) return;
 
-                window.google.accounts.id.renderButton(googleButtonRef.current, {
-                    theme: 'filled_black',
-                    size: 'large',
-                    text: (text.toLowerCase().includes('sign up') || text.toLowerCase().includes('signup')) ? 'signup_with' : 'signin_with',
-                    shape: 'rectangular'
-                });
-            } catch (err) {
-                console.warn('Google Identity initialization error:', err);
+        let intervalId = null;
+        let isMounted = true;
+
+        const initGis = () => {
+            if (window.google?.accounts?.id && googleButtonRef.current) {
+                try {
+                    window.google.accounts.id.initialize({
+                        client_id: googleClientId,
+                        callback: handleGoogleResponse
+                    });
+
+                    window.google.accounts.id.renderButton(googleButtonRef.current, {
+                        theme: 'filled_black',
+                        size: 'large',
+                        text: isSignUp ? 'signup_with' : (isContinue ? 'continue_with' : 'signin_with'),
+                        shape: 'rectangular',
+                        width: 380
+                    });
+
+                    if (isMounted) setGisReady(true);
+                    return true;
+                } catch (err) {
+                    console.warn('Google Identity initialization error:', err);
+                }
             }
+            return false;
+        };
+
+        if (!initGis()) {
+            intervalId = setInterval(() => {
+                if (initGis() && intervalId) {
+                    clearInterval(intervalId);
+                }
+            }, 300);
         }
-    }, [googleClientId, text, compact, handleGoogleResponse]);
+
+        return () => {
+            isMounted = false;
+            if (intervalId) clearInterval(intervalId);
+        };
+    }, [googleClientId, isSignUp, isContinue, compact, handleGoogleResponse]);
 
     const handleCustomGoogleClick = async () => {
         // Use Google's native OAuth2 Token Client if available and client ID is present
@@ -71,14 +101,18 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
                                 });
                                 if (onSuccess) onSuccess(user);
                             } catch (e) {
-                                if (onError) onError('Failed to fetch Google profile');
+                                const errText = typeof e === 'string' ? e : (e?.message || 'Failed to fetch Google profile');
+                                if (onError) onError(errText);
+                                setShowDevModal(true);
                             } finally {
                                 setLoading(false);
                             }
                         }
                     },
                     error_callback: (err) => {
-                        if (onError) onError(err?.message || 'Google authentication failed');
+                        const errorMsg = typeof err === 'string' ? err : (err?.message || 'Google authentication failed');
+                        if (onError) onError(errorMsg);
+                        setShowDevModal(true);
                     }
                 });
                 tokenClient.requestAccessToken();
@@ -99,6 +133,7 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
         }
 
         // Development / Demonstration fallback modal when Google Client ID or GIS is not loaded
+        setModalError(null);
         setShowDevModal(true);
     };
 
@@ -112,7 +147,7 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
         const family_name = nameParts.slice(1).join(' ') || '';
 
         setLoading(true);
-        setShowDevModal(false);
+        setModalError(null);
         try {
             const user = await loginWithGoogle({
                 email,
@@ -122,9 +157,12 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
                 given_name,
                 family_name
             });
+            setShowDevModal(false);
             if (onSuccess) onSuccess(user);
         } catch (err) {
-            if (onError) onError(err.message || 'Google authentication failed');
+            const errorMsg = typeof err === 'string' ? err : (err?.message || 'Google authentication failed');
+            setModalError(errorMsg);
+            if (onError) onError(errorMsg);
         } finally {
             setLoading(false);
         }
@@ -132,13 +170,13 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
 
     return (
         <div className={compact ? "" : "w-100"}>
-            {/* Standard Google Sign-In Button Container (hidden in compact navbar mode) */}
+            {/* Standard Google Sign-In Button Container (hidden in compact navbar mode or when GIS not ready) */}
             {!compact && (
-                <div ref={googleButtonRef} className={googleClientId && window.google?.accounts?.id ? "d-block mb-2" : "d-none"}></div>
+                <div ref={googleButtonRef} className={gisReady && googleClientId ? "d-flex justify-content-center w-100 mb-2" : "d-none"}></div>
             )}
 
             {/* Custom Button (shown in compact mode, or when standard GIS button is not active) */}
-            {(compact || !googleClientId || !window.google?.accounts?.id) && (
+            {(compact || !googleClientId || !gisReady) && (
                 <button
                     type="button"
                     className={compact
@@ -174,12 +212,17 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
                         <div className="modal-content bg-dark border-secondary text-light shadow-lg">
                             <div className="modal-header border-secondary py-2">
                                 <h6 className="modal-title d-flex align-items-center gap-2 text-warning mb-0">
-                                    <span>Google Account Sign-In</span>
+                                    <span>{isSignUp ? 'Google Account Sign-Up' : 'Google Account Sign-In'}</span>
                                 </h6>
                                 <button type="button" className="btn-close btn-close-white" onClick={() => setShowDevModal(false)} aria-label="Close"></button>
                             </div>
                             <form onSubmit={handleDevSubmit}>
                                 <div className="modal-body py-3">
+                                    {modalError && (
+                                        <div className="alert alert-danger py-1 small mb-2">
+                                            {modalError}
+                                        </div>
+                                    )}
                                     <p className="small text-muted mb-3">
                                         Enter your Google account details to authenticate via Google Auth:
                                     </p>
@@ -216,8 +259,8 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
                                         >
                                             Use Sample
                                         </button>
-                                        <button type="submit" className="btn btn-warning btn-sm flex-fill fw-bold text-dark">
-                                            Continue
+                                        <button type="submit" className="btn btn-warning btn-sm flex-fill fw-bold text-dark" disabled={loading}>
+                                            {loading ? 'Authenticating...' : 'Continue'}
                                         </button>
                                     </div>
                                 </div>

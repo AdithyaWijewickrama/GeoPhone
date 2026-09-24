@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter as Router } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -11,6 +11,13 @@ import Signup from './pages/Signup';
 import GoogleAuthButton from './components/GoogleAuthButton';
 import ChunkDetail from './components/triage/ChunkDetail';
 import DefineEventModal from './components/triage/DefineEventModal';
+import FileExplorerModal from './components/triage/FileExplorerModal';
+import WaveformChart from './components/triage/WaveformChart';
+import FlaggedEventsTable from './components/triage/FlaggedEventsTable';
+import RawFilesList from './components/triage/RawFilesList';
+import KnownEventsList from './components/triage/KnownEventsList';
+import SpectrogramModal from './components/triage/SpectrogramModal';
+import { formatDateTime, toDatetimeLocalString, parseFilenameDate, getFileDateMs } from './utils';
 
 const renderWithProviders = (ui) => {
     return render(
@@ -23,6 +30,46 @@ const renderWithProviders = (ui) => {
         </ThemeProvider>
     );
 };
+
+beforeEach(() => {
+    global.fetch = jest.fn((url) => {
+        if (typeof url === 'string' && url.includes('/api/known-events/')) {
+            return Promise.resolve({
+                ok: true,
+                json: () => Promise.resolve([
+                    {
+                        id: 1,
+                        name: 'Footsteps',
+                        start_time: new Date('2026-09-24T10:00:00').getTime(),
+                        end_time: new Date('2026-09-24T10:00:10').getTime(),
+                        duration: 10,
+                        note: 'Light footsteps near geophone',
+                        location_name: 'Site Alpha'
+                    }
+                ])
+            });
+        }
+        if (typeof url === 'string' && url.includes('/api/auth/me/')) {
+            return Promise.resolve({
+                ok: true,
+                json: () => Promise.resolve({ authenticated: true, user: { id: 1, username: 'testuser' } })
+            });
+        }
+        if (typeof url === 'string' && url.includes('/api/locations/')) {
+            return Promise.resolve({
+                ok: true,
+                json: () => Promise.resolve([
+                    { id: 1, name: 'Site Alpha', latitude: 37.77, longitude: -122.41 },
+                    { id: 2, name: 'Site Beta', latitude: 34.05, longitude: -118.24 }
+                ])
+            });
+        }
+        return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ ok: true })
+        });
+    });
+});
 
 describe('Auth Components', () => {
     test('renders Login page with standard login and Google Sign-In', () => {
@@ -101,65 +148,70 @@ describe('LocationModal Component', () => {
         fireEvent.click(selectButtons[0]);
         expect(onSelectMock).toHaveBeenCalledWith(mockLocations[0]);
     });
+
+    test('renders all available locations including unassigned ones in LocationModal', () => {
+        const testLocations = [
+            { id: 101, name: 'Station Alpha (User 1)', latitude: 10, longitude: 20, user_name: 'user1' },
+            { id: 102, name: 'Station Beta (User 2)', latitude: 30, longitude: 40, user_name: 'user2' },
+            { id: 103, name: 'Public Station Gamma', latitude: 50, longitude: 60, user_name: null }
+        ];
+
+        renderWithProviders(
+            <LocationModal
+                show={true}
+                onClose={jest.fn()}
+                locations={testLocations}
+                currentLocation={testLocations[0]}
+                onSelectLocation={jest.fn()}
+                onLocationCreated={jest.fn()}
+            />
+        );
+
+        expect(screen.getByText('Station Alpha (User 1)')).toBeInTheDocument();
+        expect(screen.getByText('Station Beta (User 2)')).toBeInTheDocument();
+        expect(screen.getByText('Public Station Gamma')).toBeInTheDocument();
+    });
 });
 
-describe('TriageDashboard Component', () => {
+describe('TriageDashboard Main Component & Interactions', () => {
+    const mockFiles = [
+        new File(['timestamp,voltage\n2026-09-24 10:00:00,0.5\n'], '2026-09-24_10-00-00.csv', {
+            type: 'text/csv',
+            lastModified: new Date('2026-09-24T10:00:00').getTime()
+        })
+    ];
+
     const mockProps = {
-        rawFiles: [
-            new File(['timestamp,voltage\n2026-09-24 10:00:00,0.5\n'], 'geophone_2026-09-24_10-00-00.csv', { type: 'text/csv' }),
-            new File(['timestamp,voltage\n2026-09-24 10:00:10,0.6\n'], 'geophone_2026-09-24_10-00-10.csv', { type: 'text/csv' })
-        ],
+        rawFiles: mockFiles,
         setRawFiles: jest.fn(),
-        chunks: [
-            {
-                key: 'chunk_1',
-                name: '10m Chunk: 09/24 10:00',
-                timeMs: 1727172000000,
-                files: [],
-                status: 'pending',
-                isCustom: false
-            }
-        ],
-        setChunks: jest.fn(),
-        selectedKey: 'chunk_1',
+        selectedKey: null,
         setSelectedKey: jest.fn(),
         labels: {},
         setLabels: jest.fn(),
-        intervalMins: 10,
-        setIntervalMins: jest.fn(),
         currentLocation: { id: 1, name: 'Site Alpha', latitude: 37.77, longitude: -122.41 },
-        locations: [{ id: 1, name: 'Site Alpha' }],
+        locations: [{ id: 1, name: 'Site Alpha', latitude: 37.77, longitude: -122.41 }],
         onOpenLocationModal: jest.fn(),
         onLocationCreated: jest.fn(),
         onSelectLocation: jest.fn()
     };
 
-    test('renders dashboard headers, location badge, import files, and lists', () => {
+    test('renders TriageDashboard with header, List 1, List 2, and empty state prompt', () => {
         renderWithProviders(<TriageDashboard {...mockProps} />);
 
         expect(screen.getByText('Geophone Batch Analyzer')).toBeInTheDocument();
         expect(screen.getByText('Site Alpha')).toBeInTheDocument();
-        expect(screen.getByText('+ Define Event')).toBeInTheDocument();
-        expect(screen.getByText(/Import Files/i)).toBeInTheDocument();
         expect(screen.getByText(/List 1: Raw Files/i)).toBeInTheDocument();
-        expect(screen.getByText(/List 2: Chunks/i)).toBeInTheDocument();
+        expect(screen.getByText(/List 2: Known Events/i)).toBeInTheDocument();
+        expect(screen.getByText(/No dataset or files selected/i)).toBeInTheDocument();
     });
 
-    test('opens Define Event modal when clicking + Define Event', () => {
+    test('supports selecting raw files in List 1', () => {
         renderWithProviders(<TriageDashboard {...mockProps} />);
 
-        const defineBtn = screen.getByText('+ Define Event');
-        fireEvent.click(defineBtn);
+        const fileItem = screen.getByText('2026-09-24_10-00-00.csv');
+        expect(fileItem).toBeInTheDocument();
 
-        expect(screen.getByText('📌 Define Custom Known Event')).toBeInTheDocument();
-        expect(screen.getByPlaceholderText(/e.g. "Controlled Blast"/i)).toBeInTheDocument();
-    });
-
-    test('supports selecting and deselecting raw files in List 1', () => {
-        renderWithProviders(<TriageDashboard {...mockProps} />);
-
-        const fileItem = screen.getByText('geophone_2026-09-24_10-00-00.csv');
-        // Select by mouse down
+        // Select file by clicking
         fireEvent.mouseDown(fileItem.closest('.selectable-item'), { button: 0 });
         expect(screen.getByText('1 selected')).toBeInTheDocument();
 
@@ -167,19 +219,76 @@ describe('TriageDashboard Component', () => {
         fireEvent.mouseDown(fileItem.closest('.selectable-item'), { button: 0 });
         expect(screen.queryByText('1 selected')).not.toBeInTheDocument();
     });
+});
 
-    test('supports selecting and deselecting chunks in List 2', () => {
-        renderWithProviders(<TriageDashboard {...mockProps} />);
+describe('KnownEventsList Component (List 2)', () => {
+    const mockEvents = [
+        {
+            id: 1,
+            name: 'Footsteps',
+            start_time: new Date('2026-04-16T23:00:00').getTime(),
+            end_time: new Date('2026-04-16T23:00:15').getTime(),
+            duration: 15,
+            note: 'Approaching sensor',
+            location_name: 'Site Alpha'
+        },
+        {
+            id: 2,
+            name: 'Controlled Blast',
+            start_time: new Date('2026-04-16T22:00:00').getTime(),
+            end_time: new Date('2026-04-16T22:00:05').getTime(),
+            duration: 5,
+            note: 'Quarry detonation',
+            location_name: 'Site Alpha'
+        }
+    ];
 
-        const chunkItem = screen.getByText('10m Chunk: 09/24 10:00');
-        // Select chunk
-        fireEvent.mouseDown(chunkItem.closest('.selectable-item'), { button: 0 });
-        expect(screen.getByText('1 selected')).toBeInTheDocument();
-        expect(screen.getAllByText('Clear').length).toBeGreaterThan(0);
+    test('renders known events with name, date/time, duration, and notes in small text', () => {
+        const onSelectMock = jest.fn();
+        renderWithProviders(
+            <KnownEventsList
+                knownEvents={mockEvents}
+                selectedKnownEventId={null}
+                onSelectKnownEvent={onSelectMock}
+                onOpenDefineEventModal={jest.fn()}
+                onRefreshKnownEvents={jest.fn()}
+                rawFiles={[]}
+                loading={false}
+            />
+        );
 
-        // Deselect chunk via clicking again
-        fireEvent.mouseDown(chunkItem.closest('.selectable-item'), { button: 0 });
-        expect(screen.queryByText('1 selected')).not.toBeInTheDocument();
+        expect(screen.getByText('List 2: Known Events (2)')).toBeInTheDocument();
+        expect(screen.getByText('📌 Footsteps')).toBeInTheDocument();
+        expect(screen.getByText('📌 Controlled Blast')).toBeInTheDocument();
+        expect(screen.getByText(/Approaching sensor/i)).toBeInTheDocument();
+        expect(screen.getByText(/Quarry detonation/i)).toBeInTheDocument();
+        expect(screen.getByText('⏱️ 15.00s')).toBeInTheDocument();
+        expect(screen.getByText('⏱️ 5.00s')).toBeInTheDocument();
+
+        // Click event card
+        const footstepsCard = screen.getByText('📌 Footsteps');
+        fireEvent.click(footstepsCard.closest('.card'));
+        expect(onSelectMock).toHaveBeenCalledWith(mockEvents[0]);
+    });
+
+    test('filters known events using search input', () => {
+        renderWithProviders(
+            <KnownEventsList
+                knownEvents={mockEvents}
+                selectedKnownEventId={null}
+                onSelectKnownEvent={jest.fn()}
+                onOpenDefineEventModal={jest.fn()}
+                onRefreshKnownEvents={jest.fn()}
+                rawFiles={[]}
+                loading={false}
+            />
+        );
+
+        const searchInput = screen.getByPlaceholderText(/Filter known events/i);
+        fireEvent.change(searchInput, { target: { value: 'Blast' } });
+
+        expect(screen.getByText('📌 Controlled Blast')).toBeInTheDocument();
+        expect(screen.queryByText('📌 Footsteps')).not.toBeInTheDocument();
     });
 });
 
@@ -200,7 +309,7 @@ describe('LabeledData Component', () => {
 describe('ChunkDetail Component', () => {
     const mockChunk = {
         key: 'chunk_1',
-        name: '10m Chunk: Test',
+        name: 'Dataset: Test',
         startTime: 1727172000000,
         endTime: 1727172600000,
         status: 'flagged',
@@ -214,7 +323,7 @@ describe('ChunkDetail Component', () => {
         }
     };
 
-    test('renders waveform chart card and flagged events table', () => {
+    test('renders waveform chart card with analyzed range and flagged events table with view plot', () => {
         renderWithProviders(
             <ChunkDetail
                 chunk={mockChunk}
@@ -227,8 +336,9 @@ describe('ChunkDetail Component', () => {
         );
 
         expect(screen.getByText('Combined Signal Waveform & Detection Anomaly Score')).toBeInTheDocument();
+        expect(screen.getByText(/Analyzed Range:/i)).toBeInTheDocument();
         expect(screen.getByText(/Flagged Events/i)).toBeInTheDocument();
-        expect(screen.getByText('View Plot')).toBeInTheDocument();
+        expect(screen.getAllByText(/View Plot/i).length).toBeGreaterThan(0);
     });
 
     test('displays analysis failed message for corrupted chunk', () => {
@@ -265,5 +375,321 @@ describe('DefineEventModal Component', () => {
         expect(screen.getByText('📌 Define Custom Known Event')).toBeInTheDocument();
         expect(screen.getByPlaceholderText(/Controlled Blast/i)).toBeInTheDocument();
         expect(screen.getByText('Save Known Event Rule')).toBeInTheDocument();
+        expect(screen.getByText('Site Alpha')).toBeInTheDocument();
+    });
+
+    test('loads and displays available locations in select dropdown', () => {
+        const mockAvailableLocations = [
+            { id: 10, name: 'Base Station 1' },
+            { id: 11, name: 'Base Station 2' }
+        ];
+
+        renderWithProviders(
+            <DefineEventModal
+                show={true}
+                onClose={jest.fn()}
+                currentLocation={mockAvailableLocations[0]}
+                locations={mockAvailableLocations}
+                onOpenLocationModal={jest.fn()}
+                user={{ id: 1, username: 'tester' }}
+                onEventCreated={jest.fn()}
+            />
+        );
+
+        expect(screen.getByText('Base Station 1')).toBeInTheDocument();
+        expect(screen.getByText('Base Station 2')).toBeInTheDocument();
+    });
+});
+
+describe('FlaggedEventsTable Component', () => {
+    const mockEvents = [
+        { startTime: 1727172000000, endTime: 1727172010000, peakScore: 8.5 },
+        { startTime: 1727172015000, endTime: 1727172025000, peakScore: 7.2 }
+    ];
+
+    test('renders table header with View Plot and Label Event actions', () => {
+        const onOpenLabelMock = jest.fn();
+        const onViewPlotMock = jest.fn();
+
+        renderWithProviders(
+            <FlaggedEventsTable
+                currentEvents={mockEvents}
+                chunk={{ key: 'c1', name: 'chunk1' }}
+                labels={{}}
+                onSaveLabel={jest.fn()}
+                setLabels={jest.fn()}
+                selectedTableEvents={new Set([0])}
+                setSelectedTableEvents={jest.fn()}
+                onOpenLabelModal={onOpenLabelMock}
+                onViewPlot={onViewPlotMock}
+                isDraggingTable={false}
+                setIsDraggingTable={jest.fn()}
+                dragTableStart={null}
+                setDragTableStart={jest.fn()}
+                dragTableDeselect={false}
+                setDragTableDeselect={jest.fn()}
+            />
+        );
+
+        const viewPlotBtn = screen.getByRole('button', { name: /View Plot/i });
+        expect(viewPlotBtn).toBeInTheDocument();
+        expect(viewPlotBtn).not.toBeDisabled();
+
+        fireEvent.click(viewPlotBtn);
+        expect(onViewPlotMock).toHaveBeenCalledWith(expect.objectContaining({
+            startTime: 1727172000000,
+            endTime: 1727172010000
+        }));
+
+        const labelBtn = screen.getByRole('button', { name: /Label Event/i });
+        expect(labelBtn).toBeInTheDocument();
+        expect(labelBtn).not.toBeDisabled();
+
+        fireEvent.click(labelBtn);
+        expect(onOpenLabelMock).toHaveBeenCalled();
+    });
+
+    test('renders filter badge when table is filtered by waveform zoom', () => {
+        const onResetMock = jest.fn();
+        renderWithProviders(
+            <FlaggedEventsTable
+                currentEvents={[mockEvents[0]]}
+                chunk={{ key: 'c1', name: 'chunk1' }}
+                labels={{}}
+                onSaveLabel={jest.fn()}
+                setLabels={jest.fn()}
+                selectedTableEvents={new Set()}
+                setSelectedTableEvents={jest.fn()}
+                onOpenLabelModal={jest.fn()}
+                onViewPlot={jest.fn()}
+                isFilteredByWaveform={true}
+                totalUnfilteredCount={5}
+                onResetWaveformFilter={onResetMock}
+            />
+        );
+
+        expect(screen.getByText(/Zoom Filtered \(1 of 5\)/i)).toBeInTheDocument();
+        const resetBtn = screen.getByText(/Show All/i);
+        fireEvent.click(resetBtn);
+        expect(onResetMock).toHaveBeenCalled();
+    });
+});
+
+describe('WaveformChart Component', () => {
+    const mockChunk = {
+        key: 'c1',
+        name: 'test_chunk',
+        startTime: 1727172000000,
+        endTime: 1727172060000,
+        raw: {
+            volts: [0.1, 0.2, 0.5, 0.1, 0.3],
+            times: [1727172000000, 1727172001000, 1727172002000, 1727172003000, 1727172004000],
+            blocks: [{ time: 1727172000000, score: 6.2 }]
+        }
+    };
+
+    test('renders analyzed date/time near threshold and View Waveform Plot button', () => {
+        const onViewPlotMock = jest.fn();
+        renderWithProviders(
+            <WaveformChart
+                chunk={mockChunk}
+                threshold={5.0}
+                setThreshold={jest.fn()}
+                onViewPlot={onViewPlotMock}
+            />
+        );
+
+        expect(screen.getByText(/Analyzed Range:/i)).toBeInTheDocument();
+        expect(screen.getByText('Threshold:')).toBeInTheDocument();
+        const viewWaveformPlotBtn = screen.getByText('View Waveform Plot');
+        expect(viewWaveformPlotBtn).toBeInTheDocument();
+
+        fireEvent.click(viewWaveformPlotBtn);
+        expect(onViewPlotMock).toHaveBeenCalled();
+    });
+
+    test('renders dynamic time frame presets and zoom toolbar', () => {
+        renderWithProviders(
+            <WaveformChart
+                chunk={mockChunk}
+                threshold={5.0}
+                setThreshold={jest.fn()}
+            />
+        );
+
+        expect(screen.getByText(/Time Frame:/i)).toBeInTheDocument();
+        expect(screen.getByText(/Full/i)).toBeInTheDocument();
+        expect(screen.getByText('10s')).toBeInTheDocument();
+        expect(screen.getByText('30s')).toBeInTheDocument();
+        expect(screen.getByText('1m')).toBeInTheDocument();
+        expect(screen.getByTitle('Zoom In (+)')).toBeInTheDocument();
+        expect(screen.getByTitle('Zoom Out (-)')).toBeInTheDocument();
+        expect(screen.getByTitle('Reset Zoom to 100%')).toBeInTheDocument();
+        expect(screen.getByTitle('Pan Left (Shift view earlier)')).toBeInTheDocument();
+        expect(screen.getByTitle('Pan Right (Shift view later)')).toBeInTheDocument();
+    });
+});
+
+describe('SpectrogramModal Component', () => {
+    test('renders spectrogram modal with image and download button', () => {
+        const onCloseMock = jest.fn();
+        renderWithProviders(
+            <SpectrogramModal
+                plotModal={{
+                    visible: true,
+                    loading: false,
+                    image: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+                    error: null,
+                    title: 'Test Spectrogram'
+                }}
+                onClose={onCloseMock}
+            />
+        );
+
+        expect(screen.getByText('Event Analysis & Spectrogram')).toBeInTheDocument();
+        expect(screen.getByText('Test Spectrogram')).toBeInTheDocument();
+        expect(screen.getByAltText('Event Spectrogram')).toBeInTheDocument();
+        expect(screen.getByText('💾 Download Plot')).toBeInTheDocument();
+    });
+});
+
+describe('FileExplorerModal Component', () => {
+    test('renders Windows Explorer structure with breadcrumbs, tree pane, search, and import buttons', () => {
+        const onImportMock = jest.fn();
+        const onCloseMock = jest.fn();
+
+        renderWithProviders(
+            <FileExplorerModal
+                show={true}
+                onClose={onCloseMock}
+                onImportFiles={onImportMock}
+                currentLocation={{ id: 1, name: 'Site Alpha' }}
+                locations={[{ id: 1, name: 'Site Alpha' }]}
+            />
+        );
+
+        expect(screen.getByText(/Open Files — Windows File Explorer/i)).toBeInTheDocument();
+        expect(screen.getAllByText('This PC').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('Local Disk (C:)').length).toBeGreaterThan(0);
+        expect(screen.getByPlaceholderText(/Search CSV/i)).toBeInTheDocument();
+        expect(screen.getByText('⭐ QUICK ACCESS')).toBeInTheDocument();
+        expect(screen.getByText('💻 THIS PC')).toBeInTheDocument();
+        expect(screen.getByText('📍 STATIONS')).toBeInTheDocument();
+        expect(screen.getByText('📄 Browse PC Files')).toBeInTheDocument();
+        expect(screen.getByText('📁 Browse PC Folder')).toBeInTheDocument();
+
+        const openImportBtn = screen.getByRole('button', { name: /Open \/ Import/i });
+        expect(openImportBtn).toBeInTheDocument();
+        fireEvent.click(openImportBtn);
+        expect(onImportMock).toHaveBeenCalled();
+        expect(onCloseMock).toHaveBeenCalled();
+    });
+});
+
+describe('RawFilesList Days, Hours & Minutes Layout', () => {
+    const mockFiles = [
+        new File([''], '2026-04-23_10-00-00.csv', { lastModified: new Date('2026-04-23T10:00:00').getTime() }),
+        new File([''], '2026-04-17_15-00-00.csv', { lastModified: new Date('2026-04-17T15:00:00').getTime() }),
+        new File([''], '2026-04-16_23-59-00.csv', { lastModified: new Date('2026-04-16T23:59:00').getTime() }),
+        new File([''], '2026-04-16_23-00-00.csv', { lastModified: new Date('2026-04-16T23:00:00').getTime() }),
+        new File([''], '2026-04-16_22-00-00.csv', { lastModified: new Date('2026-04-16T22:00:00').getTime() }),
+        new File([''], '2026-04-16_21-00-00.csv', { lastModified: new Date('2026-04-16T21:00:00').getTime() })
+    ];
+
+    const mockKnownEvents = [
+        {
+            id: 1,
+            name: 'Blast A',
+            start_time: new Date('2026-04-16T23:59:00').getTime(),
+            end_time: new Date('2026-04-16T23:59:30').getTime()
+        }
+    ];
+
+    test('renders Days, Hours, and Minutes columns with counts and known event indicators', () => {
+        const setSelectedMock = jest.fn();
+        renderWithProviders(
+            <RawFilesList
+                rawFiles={mockFiles}
+                showList1={true}
+                setShowList1={jest.fn()}
+                selectedRawIndices={new Set()}
+                setSelectedRawIndices={setSelectedMock}
+                rawSelectionInfo={null}
+                analyzingSelection={false}
+                onAnalyzeRawSelection={jest.fn()}
+                isDraggingRaw={false}
+                setIsDraggingRaw={jest.fn()}
+                dragRawStart={null}
+                setDragRawStart={jest.fn()}
+                dragRawDeselect={false}
+                setDragRawDeselect={jest.fn()}
+                onOpenExplorerModal={jest.fn()}
+                knownEvents={mockKnownEvents}
+            />
+        );
+
+        // Days header & count
+        expect(screen.getByText('Days')).toBeInTheDocument();
+        expect(screen.getByText('3')).toBeInTheDocument();
+        expect(screen.getByText('2026-04-23')).toBeInTheDocument();
+        expect(screen.getByText('2026-04-17')).toBeInTheDocument();
+        expect(screen.getByText('2026-04-16')).toBeInTheDocument();
+        expect(screen.getByText('Newest day top')).toBeInTheDocument();
+
+        // Hours header
+        expect(screen.getByText('Hours')).toBeInTheDocument();
+
+        // Minutes header
+        expect(screen.getByText('Minutes')).toBeInTheDocument();
+
+        // Click Day 2026-04-16
+        const day16 = screen.getByText('2026-04-16');
+        fireEvent.click(day16);
+
+        expect(screen.getAllByText('23:00').length).toBeGreaterThan(0);
+        expect(screen.getByText('22:00')).toBeInTheDocument();
+        expect(screen.getByText('21:00')).toBeInTheDocument();
+
+        // Click Hour 23:00 to see minutes
+        const hour23 = screen.getAllByText('23:00')[0];
+        fireEvent.click(hour23);
+
+        expect(screen.getByText('23:59')).toBeInTheDocument();
+        expect(screen.getAllByText('23:00').length).toBeGreaterThan(0);
+
+        // Click Minute 23:59 to toggle selection
+        const min59 = screen.getByText('23:59');
+        fireEvent.click(min59);
+        expect(setSelectedMock).toHaveBeenCalled();
+    });
+});
+
+describe('Timestamp Parsing & Formatting (2026 Dates)', () => {
+    test('parseFilenameDate extracts correct 2026 dates from various filename patterns', () => {
+        const d1 = parseFilenameDate('geophone_2026-07-29_21-58-26.csv');
+        expect(d1.getFullYear()).toBe(2026);
+        expect(d1.getMonth() + 1).toBe(7);
+        expect(d1.getDate()).toBe(29);
+        expect(d1.getHours()).toBe(21);
+        expect(d1.getMinutes()).toBe(58);
+        expect(d1.getSeconds()).toBe(26);
+
+        const d2 = parseFilenameDate('data_20260924_100000.csv');
+        expect(d2.getFullYear()).toBe(2026);
+        expect(d2.getMonth() + 1).toBe(9);
+        expect(d2.getDate()).toBe(24);
+    });
+
+    test('formatDateTime and toDatetimeLocalString never format as 1970 for 2026 epoch inputs', () => {
+        const epochMs2026 = 1787600000000;
+        const formatted = formatDateTime(epochMs2026);
+        expect(formatted).toMatch(/^2026-/);
+
+        const epochSec2026 = 1787600000;
+        const formattedSec = formatDateTime(epochSec2026);
+        expect(formattedSec).toMatch(/^2026-/);
+
+        const localStr = toDatetimeLocalString(epochMs2026);
+        expect(localStr).toMatch(/^2026-/);
     });
 });

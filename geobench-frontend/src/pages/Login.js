@@ -33,7 +33,8 @@ export default function Login() {
     };
 
     const handleGoogleError = (err) => {
-        setError(err || 'Google sign-in failed');
+        const errorMsg = typeof err === 'string' ? err : (err?.message || 'Google sign-in failed');
+        setError(errorMsg);
     };
 
     return (

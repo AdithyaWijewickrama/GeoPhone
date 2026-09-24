@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { mergeEvents, formatDateTime, formatDuration } from '../../utils';
 import { DEFAULT_THRESHOLD, API_BASE_URL } from './constants';
@@ -9,7 +9,7 @@ import SpectrogramModal from './SpectrogramModal';
 
 export default function ChunkDetail({
     chunk,
-    labels,
+    labels = {},
     onSaveLabel,
     setLabels,
     currentLocation,
@@ -18,7 +18,10 @@ export default function ChunkDetail({
     const { user } = useAuth();
     const [threshold, setThreshold] = useState(DEFAULT_THRESHOLD);
 
-    const [plotModal, setPlotModal] = useState({ visible: false, loading: false, image: null, error: null });
+    const [plotModal, setPlotModal] = useState({ visible: false, loading: false, image: null, error: null, title: '' });
+
+    // Dynamic waveform selection window state
+    const [waveformSelection, setWaveformSelection] = useState(null);
 
     // Table multi-selection state with effortless drag
     const [selectedTableEvents, setSelectedTableEvents] = useState(new Set());
@@ -45,16 +48,34 @@ export default function ChunkDetail({
         return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
     }, []);
 
-    if (chunk.status === 'corrupted' || !chunk.raw) {
+    const allChunkEvents = useMemo(() => {
+        if (!chunk?.raw?.blocks) return [];
+        return mergeEvents(chunk.raw.blocks, threshold);
+    }, [chunk?.raw?.blocks, threshold]);
+
+    // Filter events based on active visible waveform window
+    const currentEvents = useMemo(() => {
+        if (!waveformSelection || !waveformSelection.isZoomed) {
+            return allChunkEvents;
+        }
+        return allChunkEvents.filter(ev => {
+            return Math.max(ev.startTime, waveformSelection.startMs) <= Math.min(ev.endTime, waveformSelection.endMs);
+        });
+    }, [allChunkEvents, waveformSelection]);
+
+    // Handle visible range change from WaveformChart
+    const handleWaveformSelectionChange = useCallback((sel) => {
+        setWaveformSelection(sel);
+    }, []);
+
+    if (chunk?.status === 'corrupted' || !chunk?.raw) {
         return (
-            <div className="alert alert-danger">
+            <div className="alert alert-danger shadow-sm">
                 <h5>Analysis Failed</h5>
-                {chunk.missing_reports && chunk.missing_reports.map((r, i) => <div key={i}>• {r}</div>)}
+                {chunk?.missing_reports && chunk.missing_reports.map((r, i) => <div key={i}>• {r}</div>)}
             </div>
         );
     }
-
-    const currentEvents = mergeEvents(chunk.raw.blocks, threshold);
 
     // Calculate fixed date & time for selected events
     const getSelectedEventsBounds = () => {
@@ -83,30 +104,37 @@ export default function ChunkDetail({
     const bounds = getSelectedEventsBounds();
 
     // View spectrogram / Matplotlib zoom plot
-    const handleViewPlot = async (event) => {
-        setPlotModal({ visible: true, loading: true, image: null, error: null });
+    const handleViewPlot = async (target) => {
+        const startMs = target?.startTime ?? target?.start_time ?? target?.event_start ?? chunk?.startTime;
+        const endMs = target?.endTime ?? target?.end_time ?? target?.event_end ?? chunk?.endTime;
+        const title = target?.title || (startMs && endMs ? `${formatDateTime(startMs)} – ${formatDateTime(endMs)}` : 'Event Plot');
+
+        setPlotModal({ visible: true, loading: true, image: null, error: null, title });
 
         try {
+            const payload = {
+                times: chunk.raw.times,
+                volts: chunk.raw.volts,
+                start_time: startMs,
+                end_time: endMs,
+                event_start: startMs,
+                event_end: endMs,
+                chunk_name: chunk.name
+            };
+
             const res = await fetch(`${API_BASE_URL}/api/plot-event/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    times: chunk.raw.times,
-                    volts: chunk.raw.volts,
-                    blocks: chunk.raw.blocks,
-                    event_start: event.startTime,
-                    event_end: event.endTime,
-                    chunk_name: chunk.name
-                })
+                body: JSON.stringify(payload)
             });
             const data = await res.json();
             if (!res.ok || data.error) {
-                setPlotModal({ visible: true, loading: false, image: null, error: data.error || 'Failed to render plot' });
+                setPlotModal({ visible: true, loading: false, image: null, error: data.error || 'Failed to render plot', title });
             } else {
-                setPlotModal({ visible: true, loading: false, image: data.image_base64, error: null });
+                setPlotModal({ visible: true, loading: false, image: data.image_base64 || data.image, error: null, title });
             }
         } catch (err) {
-            setPlotModal({ visible: true, loading: false, image: null, error: 'Network error generating plot' });
+            setPlotModal({ visible: true, loading: false, image: null, error: err.message || 'Network error generating plot', title });
         }
     };
 
@@ -149,6 +177,8 @@ export default function ChunkDetail({
                 chunk={chunk}
                 threshold={threshold}
                 setThreshold={setThreshold}
+                onSelectionChange={handleWaveformSelectionChange}
+                onViewPlot={handleViewPlot}
             />
 
             {/* Flagged Events Table */}
@@ -168,6 +198,9 @@ export default function ChunkDetail({
                 setDragTableStart={setDragTableStart}
                 dragTableDeselect={dragTableDeselect}
                 setDragTableDeselect={setDragTableDeselect}
+                isFilteredByWaveform={Boolean(waveformSelection?.isZoomed)}
+                totalUnfilteredCount={allChunkEvents.length}
+                onResetWaveformFilter={() => setWaveformSelection(null)}
             />
 
             {/* Label Event Modal */}
@@ -182,7 +215,7 @@ export default function ChunkDetail({
             {/* Spectrogram / Zoom Modal */}
             <SpectrogramModal
                 plotModal={plotModal}
-                onClose={() => setPlotModal({ ...plotModal, visible: false })}
+                onClose={() => setPlotModal(prev => ({ ...prev, visible: false }))}
             />
         </div>
     );

@@ -3,16 +3,15 @@ import React from 'react';
 export default function TriageHeader({
     currentLocation,
     user,
-    intervalMins,
-    setIntervalMins,
     onOpenLocationModal,
     onOpenDefineModal,
+    onOpenExplorerModal,
     onFilesSelected,
     fileInputRef,
     folderInputRef,
     onScanAll,
     scanning,
-    chunkCount,
+    fileCount,
     onClear
 }) {
     return (
@@ -58,27 +57,12 @@ export default function TriageHeader({
                     + Define Event
                 </button>
 
-                <div className="input-group input-group-sm w-auto">
-                    <span className="input-group-text bg-dark text-muted border-secondary">Interval:</span>
-                    <select
-                        className="form-select bg-dark text-light border-secondary"
-                        value={intervalMins}
-                        onChange={(e) => setIntervalMins(parseInt(e.target.value))}
-                    >
-                        <option value="1">1 min</option>
-                        <option value="2">2 mins</option>
-                        <option value="5">5 mins</option>
-                        <option value="10">10 mins</option>
-                        <option value="30">30 mins</option>
-                        <option value="60">1 Hour</option>
-                    </select>
-                </div>
-
-                {/* Import Files Buttons */}
+                {/* Import Files Buttons: Explorer Modal & Native */}
                 <div className="btn-group btn-group-sm">
                     <button
                         className="btn btn-warning fw-bold"
-                        onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                        onClick={() => onOpenExplorerModal ? onOpenExplorerModal() : fileInputRef.current && fileInputRef.current.click()}
+                        title="Open Windows File Explorer Selection Modal"
                     >
                         📁 Import Files
                     </button>
@@ -112,9 +96,9 @@ export default function TriageHeader({
                 <button
                     className="btn btn-outline-warning btn-sm fw-bold"
                     onClick={onScanAll}
-                    disabled={scanning || !chunkCount}
+                    disabled={scanning || !fileCount}
                 >
-                    {scanning ? 'Scanning...' : 'Scan All Chunks'}
+                    {scanning ? 'Scanning...' : 'Scan All'}
                 </button>
 
                 <button

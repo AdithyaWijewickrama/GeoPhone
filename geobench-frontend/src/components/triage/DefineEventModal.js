@@ -6,22 +6,59 @@ export default function DefineEventModal({
     show,
     onClose,
     currentLocation,
-    locations,
+    locations = [],
     onOpenLocationModal,
     user,
     onEventCreated
 }) {
+    const [availableLocations, setAvailableLocations] = useState(locations || []);
     const [defineEventLocationId, setDefineEventLocationId] = useState('');
     const [newEvent, setNewEvent] = useState({ name: '', start: '', end: '', duration: '', note: '' });
     const [defineCollisionWarning, setDefineCollisionWarning] = useState(null);
     const [forceDefineSave, setForceDefineSave] = useState(false);
+    const [loadingLocations, setLoadingLocations] = useState(false);
+
+    // Sync with locations prop when changed
+    useEffect(() => {
+        if (Array.isArray(locations) && locations.length > 0) {
+            setAvailableLocations(locations);
+        }
+    }, [locations]);
+
+    // Load available locations from API when modal opens
+    useEffect(() => {
+        if (!show) return;
+
+        let isMounted = true;
+        setLoadingLocations(true);
+
+        fetch(`${API_BASE_URL}/api/locations/`)
+            .then(res => res.json())
+            .then(data => {
+                if (isMounted && Array.isArray(data)) {
+                    setAvailableLocations(data);
+                }
+            })
+            .catch(err => {
+                if (isMounted) console.error("Error loading available locations for known events:", err);
+            })
+            .finally(() => {
+                if (isMounted) setLoadingLocations(false);
+            });
+
+        return () => {
+            isMounted = false;
+        };
+    }, [show]);
 
     // Set default define event location when location changes
     useEffect(() => {
         if (currentLocation) {
             setDefineEventLocationId(String(currentLocation.id));
+        } else if (!defineEventLocationId && availableLocations.length > 0) {
+            // Keep default empty or current
         }
-    }, [currentLocation]);
+    }, [currentLocation, availableLocations]);
 
     if (!show) return null;
 
@@ -140,7 +177,15 @@ export default function DefineEventModal({
 
                         {/* Location Selection for Event */}
                         <div className="mb-3">
-                            <label className="form-label text-warning small fw-bold">Location *</label>
+                            <div className="d-flex justify-content-between align-items-center mb-1">
+                                <label className="form-label text-warning small fw-bold mb-0">Location *</label>
+                                {loadingLocations && (
+                                    <span className="text-muted small">
+                                        <span className="spinner-border spinner-border-sm me-1" role="status" style={{ width: '10px', height: '10px' }}></span>
+                                        Loading locations...
+                                    </span>
+                                )}
+                            </div>
                             <div className="input-group input-group-sm">
                                 <select
                                     className="form-select bg-dark text-light border-warning"
@@ -148,7 +193,7 @@ export default function DefineEventModal({
                                     onChange={(e) => setDefineEventLocationId(e.target.value)}
                                 >
                                     <option value="">-- No Location (Global) --</option>
-                                    {locations.map(loc => (
+                                    {(availableLocations || []).map(loc => (
                                         <option key={loc.id} value={loc.id}>{loc.name}</option>
                                     ))}
                                 </select>

@@ -71,7 +71,8 @@ export default function Signup() {
     };
 
     const handleGoogleError = (err) => {
-        setError(err || 'Google sign-up failed');
+        const errorMsg = typeof err === 'string' ? err : (err?.message || 'Google sign-up failed');
+        setError(errorMsg);
     };
 
     return (

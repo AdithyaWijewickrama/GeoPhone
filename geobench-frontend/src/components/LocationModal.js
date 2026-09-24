@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL || 'http://127.0.0.1:8000';
@@ -20,6 +20,33 @@ export default function LocationModal({
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [modalLocations, setModalLocations] = useState(locations || []);
+
+    // Sync with locations prop when updated
+    useEffect(() => {
+        if (Array.isArray(locations) && locations.length > 0) {
+            setModalLocations(locations);
+        }
+    }, [locations]);
+
+    // Fetch latest available locations whenever modal is opened
+    useEffect(() => {
+        if (!show) return;
+        let isMounted = true;
+        fetch(`${API_BASE_URL}/api/locations/`)
+            .then(res => res.json())
+            .then(data => {
+                if (isMounted && Array.isArray(data)) {
+                    setModalLocations(data);
+                }
+            })
+            .catch(err => {
+                if (isMounted) console.error("Error loading locations in modal:", err);
+            });
+        return () => {
+            isMounted = false;
+        };
+    }, [show]);
 
     if (!show) return null;
 
@@ -53,6 +80,7 @@ export default function LocationModal({
 
             onLocationCreated(data);
             onSelectLocation(data);
+            setModalLocations(prev => [data, ...prev.filter(l => l.id !== data.id)]);
             setName('');
             setLatitude('');
             setLongitude('');
@@ -79,7 +107,8 @@ export default function LocationModal({
         }
     };
 
-    const filteredLocations = (locations || []).filter(l =>
+    const displayLocations = (modalLocations && modalLocations.length > 0) ? modalLocations : (locations || []);
+    const filteredLocations = displayLocations.filter(l =>
         l.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (l.description && l.description.toLowerCase().includes(searchTerm.toLowerCase()))
     );

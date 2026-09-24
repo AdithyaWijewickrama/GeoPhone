@@ -8,18 +8,20 @@ import {
 import { DEFAULT_THRESHOLD, API_BASE_URL } from '../components/triage/constants';
 import TriageHeader from '../components/triage/TriageHeader';
 import RawFilesList from '../components/triage/RawFilesList';
-import ChunksList from '../components/triage/ChunksList';
+import KnownEventsList from '../components/triage/KnownEventsList';
 import DefineEventModal from '../components/triage/DefineEventModal';
+import FileExplorerModal from '../components/triage/FileExplorerModal';
 import ChunkDetail from '../components/triage/ChunkDetail';
 
 export default function TriageDashboard({
-    rawFiles, setRawFiles,
-    chunks, setChunks,
-    selectedKey, setSelectedKey,
-    labels, setLabels,
-    intervalMins, setIntervalMins,
+    rawFiles = [],
+    setRawFiles,
+    selectedKey,
+    setSelectedKey,
+    labels = {},
+    setLabels,
     currentLocation,
-    locations,
+    locations = [],
     onOpenLocationModal,
     onLocationCreated,
     onSelectLocation
@@ -27,20 +29,27 @@ export default function TriageDashboard({
     const { user } = useAuth();
     const [scanning, setScanning] = useState(false);
     const [knownEvents, setKnownEvents] = useState([]);
+    const [loadingEvents, setLoadingEvents] = useState(false);
 
     // List 1 (Raw Files) state
     const [showList1, setShowList1] = useState(true);
     const [selectedRawIndices, setSelectedRawIndices] = useState(new Set());
+    const [activeDay, setActiveDay] = useState(null);
+    const [activeHour, setActiveHour] = useState(null);
+    const [activeMinute, setActiveMinute] = useState(null);
 
-    // List 2 (Chunks) multi-select state
-    const [selectedChunkKeys, setSelectedChunkKeys] = useState(new Set());
+    // List 2 (Known Events) state
+    const [selectedKnownEventId, setSelectedKnownEventId] = useState(null);
 
-    // Active Chunk (loaded in detail panel)
+    // Active Dataset loaded in detail panel
     const [activeChunkData, setActiveChunkData] = useState(null);
     const [analyzingSelection, setAnalyzingSelection] = useState(false);
 
     // Define Event Modal State
     const [showDefineModal, setShowDefineModal] = useState(false);
+
+    // Windows File Explorer Modal State
+    const [showExplorerModal, setShowExplorerModal] = useState(false);
 
     // File input refs
     const fileInputRef = useRef(null);
@@ -51,37 +60,33 @@ export default function TriageDashboard({
     const [dragRawStart, setDragRawStart] = useState(null);
     const [dragRawDeselect, setDragRawDeselect] = useState(false);
 
-    const [isDraggingChunks, setIsDraggingChunks] = useState(false);
-    const [dragChunkStart, setDragChunkStart] = useState(null);
-    const [dragChunkDeselect, setDragChunkDeselect] = useState(false);
-
     // Stop drag globally on window mouseup
     useEffect(() => {
         const handleGlobalMouseUp = () => {
             setIsDraggingRaw(false);
             setDragRawStart(null);
             setDragRawDeselect(false);
-            setIsDraggingChunks(false);
-            setDragChunkStart(null);
-            setDragChunkDeselect(false);
         };
         window.addEventListener('mouseup', handleGlobalMouseUp);
         return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
     }, []);
 
-    // Fetch known events when location changes
+    // Fetch known events from database when location changes
     const fetchKnownEvents = useCallback(async () => {
+        setLoadingEvents(true);
         try {
             const locParam = currentLocation ? `?location_id=${currentLocation.id}` : '';
             const res = await fetch(`${API_BASE_URL}/api/known-events/${locParam}`);
             if (res.ok) {
                 const data = await res.json();
                 setKnownEvents(data);
+                setLoadingEvents(false);
                 return data;
             }
         } catch (err) {
             console.error("Error fetching known events:", err);
         }
+        setLoadingEvents(false);
         return [];
     }, [currentLocation]);
 
@@ -89,76 +94,11 @@ export default function TriageDashboard({
         fetchKnownEvents();
     }, [fetchKnownEvents]);
 
-    // Chunkise files based on known events and intervalMins
-    const chunkiseFiles = useCallback((filesList, eventsList) => {
-        if (!filesList || !filesList.length) {
-            setChunks([]);
-            return;
-        }
-
-        const events = eventsList || knownEvents;
-        const standardGrouped = {};
-        const eventGrouped = {};
-
-        filesList.forEach(f => {
-            const ms = getFileDateMs(f);
-            const matchedEvent = events.find(ke => ms >= ke.start_time && ms <= ke.end_time);
-
-            if (matchedEvent) {
-                if (!eventGrouped[matchedEvent.id]) {
-                    eventGrouped[matchedEvent.id] = { event: matchedEvent, files: [] };
-                }
-                eventGrouped[matchedEvent.id].files.push(f);
-            } else {
-                const chunkTime = ms - (ms % (intervalMins * 60 * 1000));
-                if (!standardGrouped[chunkTime]) {
-                    standardGrouped[chunkTime] = [];
-                }
-                standardGrouped[chunkTime].push(f);
-            }
-        });
-
-        const standardChunks = Object.keys(standardGrouped).map(timeKey => {
-            const dateStr = new Date(parseInt(timeKey)).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
-            return {
-                key: `chunk_${timeKey}`,
-                name: `${intervalMins}m Chunk: ${dateStr}`,
-                timeMs: parseInt(timeKey),
-                files: standardGrouped[timeKey].sort((a, b) => getFileDateMs(a) - getFileDateMs(b)),
-                status: 'pending',
-                isCustom: false
-            };
-        });
-
-        const customChunks = Object.values(eventGrouped).map(group => {
-            return {
-                key: `custom_${group.event.id}`,
-                name: `📌 Known: ${group.event.name}`,
-                timeMs: group.event.start_time,
-                files: group.files.sort((a, b) => getFileDateMs(a) - getFileDateMs(b)),
-                status: 'pending',
-                isCustom: true,
-                eventData: group.event
-            };
-        });
-
-        const allChunks = [...standardChunks, ...customChunks].sort((a, b) => a.timeMs - b.timeMs);
-        setChunks(allChunks);
-    }, [intervalMins, knownEvents, setChunks]);
-
-    // Re-chunkise when rawFiles or interval changes
-    useEffect(() => {
-        if (rawFiles.length > 0) {
-            chunkiseFiles(rawFiles, knownEvents);
-        }
-    }, [rawFiles, intervalMins, knownEvents, chunkiseFiles]);
-
     // Handle importing files
     const handleFilesSelected = (e) => {
         const files = Array.from(e.target.files).filter(f => /\.csv$/i.test(f.name));
         if (!files.length) return;
 
-        // If no location is set, ask the user
         if (!currentLocation && onOpenLocationModal) {
             onOpenLocationModal();
         }
@@ -166,12 +106,31 @@ export default function TriageDashboard({
         const sorted = [...files].sort((a, b) => getFileDateMs(a) - getFileDateMs(b));
         setRawFiles(sorted);
         setSelectedRawIndices(new Set());
-        setSelectedChunkKeys(new Set());
         setActiveChunkData(null);
         e.target.value = '';
+
+        // Check database and update known events when loading files
+        fetchKnownEvents();
     };
 
-    // Scan a single chunk or batch of files
+    // Handle importing files from Windows File Explorer Modal
+    const handleImportFromExplorer = (files) => {
+        if (!files || !files.length) return;
+
+        if (!currentLocation && onOpenLocationModal) {
+            onOpenLocationModal();
+        }
+
+        const sorted = [...files].sort((a, b) => getFileDateMs(a) - getFileDateMs(b));
+        setRawFiles(sorted);
+        setSelectedRawIndices(new Set());
+        setActiveChunkData(null);
+
+        // Check database and update known events when loading files
+        fetchKnownEvents();
+    };
+
+    // Scan a batch of files as a single continuous time dataset
     const scanFilesAsChunk = async (filesToScan, customName) => {
         if (!filesToScan || !filesToScan.length) return null;
 
@@ -230,22 +189,15 @@ export default function TriageDashboard({
         }
     };
 
-    const scanChunk = async (chunk) => {
-        const result = await scanFilesAsChunk(chunk.files, chunk.name);
-        if (result) {
-            return { ...chunk, ...result, key: chunk.key };
-        }
-        return chunk;
-    };
-
+    // Scan All Files
     const runFullScan = async () => {
-        const pending = chunks.filter(c => c.status === 'pending');
-        if (!pending.length) return;
+        if (!rawFiles || !rawFiles.length) return;
         setScanning(true);
-        for (let i = 0; i < pending.length; i++) {
-            setChunks(prev => prev.map(c => c.key === pending[i].key ? { ...c, status: 'processing' } : c));
-            const updated = await scanChunk(pending[i]);
-            setChunks(prev => prev.map(c => c.key === pending[i].key ? updated : c));
+        const name = `Full Dataset (${rawFiles.length} files)`;
+        const scanned = await scanFilesAsChunk(rawFiles, name);
+        setActiveChunkData(scanned);
+        if (setSelectedKey && scanned?.key) {
+            setSelectedKey(scanned.key);
         }
         setScanning(false);
     };
@@ -274,36 +226,7 @@ export default function TriageDashboard({
 
     const rawSelectionInfo = getRawSelectionInfo();
 
-    // Selection info for List 2
-    const getChunkSelectionInfo = () => {
-        if (!selectedChunkKeys.size) return null;
-        const selectedList = chunks.filter(c => selectedChunkKeys.has(c.key));
-        if (!selectedList.length) return null;
-
-        const allFiles = selectedList.flatMap(c => c.files);
-        if (!allFiles.length) return null;
-
-        const times = allFiles.map(f => getFileDateMs(f));
-        const minTime = Math.min(...times);
-        const maxTime = Math.max(...times);
-        const durationSec = Math.max(1, Math.round((maxTime - minTime) / 1000) || (allFiles.length * 10));
-        const dtStr = `${formatDateTime(minTime)} - ${formatDateTime(maxTime)}`;
-
-        return {
-            chunks: selectedList,
-            chunkCount: selectedList.length,
-            files: allFiles,
-            fileCount: allFiles.length,
-            durationSec,
-            dtStr,
-            minTime,
-            maxTime
-        };
-    };
-
-    const chunkSelectionInfo = getChunkSelectionInfo();
-
-    // Analyze selection handlers
+    // Analyze selection from List 1
     const handleAnalyzeRawSelection = async () => {
         if (!rawSelectionInfo) return;
         setAnalyzingSelection(true);
@@ -312,28 +235,58 @@ export default function TriageDashboard({
         const scanned = await scanFilesAsChunk(rawSelectionInfo.files, customName);
 
         setActiveChunkData(scanned);
-        setSelectedKey(scanned?.key || null);
+        if (setSelectedKey && scanned?.key) {
+            setSelectedKey(scanned.key);
+        }
         setAnalyzingSelection(false);
     };
 
-    const handleAnalyzeChunkSelection = async () => {
-        if (!chunkSelectionInfo) return;
-        setAnalyzingSelection(true);
+    // When a Known Event is clicked in List 2:
+    // Selects the day, hour, and minute in List 1, highlights matching files, and analyzes them
+    const handleSelectKnownEvent = async (event) => {
+        if (!event) return;
+        setSelectedKnownEventId(event.id);
 
-        if (chunkSelectionInfo.chunkCount === 1) {
-            const single = chunkSelectionInfo.chunks[0];
-            const updated = await scanChunk(single);
-            setChunks(prev => prev.map(c => c.key === updated.key ? updated : c));
-            setActiveChunkData(updated);
-            setSelectedKey(updated.key);
-        } else {
-            // Multiple chunks selected -> Batch into single combined chunk
-            const batchName = `Batch of ${chunkSelectionInfo.chunkCount} Chunks: ${chunkSelectionInfo.dtStr}`;
-            const scanned = await scanFilesAsChunk(chunkSelectionInfo.files, batchName);
+        const startMs = event.start_time || event.startTime || 0;
+        const endMs = event.end_time || event.endTime || (startMs + 10000);
+        const d = new Date(startMs);
+        const year = d.getFullYear() < 2000 ? 2026 : d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const dayKey = `${year}-${month}-${day}`;
+        const hour = String(d.getHours()).padStart(2, '0');
+        const hourKey = `${hour}:00`;
+        const min = String(d.getMinutes()).padStart(2, '0');
+        const minKey = `${hour}:${min}`;
+
+        // Select time & date in List 1
+        setActiveDay(dayKey);
+        setActiveHour(hourKey);
+        setActiveMinute(minKey);
+
+        // Find matching files in rawFiles
+        const matchingIndices = new Set();
+        rawFiles.forEach((file, idx) => {
+            const fileMs = getFileDateMs(file);
+            if (fileMs >= (startMs - 60000) && fileMs <= (endMs + 60000)) {
+                matchingIndices.add(idx);
+            }
+        });
+
+        if (matchingIndices.size > 0) {
+            setSelectedRawIndices(matchingIndices);
+            const selectedFiles = Array.from(matchingIndices).map(i => rawFiles[i]);
+            setAnalyzingSelection(true);
+            const customName = `📌 Known Event: ${event.name} (${formatDateTime(startMs)})`;
+            const scanned = await scanFilesAsChunk(selectedFiles, customName);
             setActiveChunkData(scanned);
-            setSelectedKey(scanned?.key || null);
+            if (setSelectedKey && scanned?.key) {
+                setSelectedKey(scanned.key);
+            }
+            setAnalyzingSelection(false);
+        } else {
+            setSelectedRawIndices(new Set());
         }
-        setAnalyzingSelection(false);
     };
 
     // Save label callback
@@ -365,26 +318,18 @@ export default function TriageDashboard({
         });
 
         if (saveAsKnownEvent) {
-            const updatedEvents = await fetchKnownEvents();
-            if (rawFiles.length > 0) {
-                chunkiseFiles(rawFiles, updatedEvents);
-            }
+            await fetchKnownEvents();
         }
     };
 
     const handleClearAll = () => {
         setRawFiles([]);
-        setChunks([]);
         setSelectedRawIndices(new Set());
-        setSelectedChunkKeys(new Set());
         setActiveChunkData(null);
     };
 
     const handleEventCreated = async () => {
-        const updatedEvents = await fetchKnownEvents();
-        if (rawFiles.length > 0) {
-            chunkiseFiles(rawFiles, updatedEvents);
-        }
+        await fetchKnownEvents();
     };
 
     return (
@@ -393,25 +338,24 @@ export default function TriageDashboard({
             <TriageHeader
                 currentLocation={currentLocation}
                 user={user}
-                intervalMins={intervalMins}
-                setIntervalMins={setIntervalMins}
                 onOpenLocationModal={onOpenLocationModal}
                 onOpenDefineModal={() => setShowDefineModal(true)}
+                onOpenExplorerModal={() => setShowExplorerModal(true)}
                 onFilesSelected={handleFilesSelected}
                 fileInputRef={fileInputRef}
                 folderInputRef={folderInputRef}
                 onScanAll={runFullScan}
                 scanning={scanning}
-                chunkCount={chunks.length}
+                fileCount={rawFiles.length}
                 onClear={handleClearAll}
             />
 
             {/* Main Content Layout */}
             <div className="container-fluid flex-grow-1 d-flex p-0">
                 <div className="row g-0 w-100">
-                    {/* Sidebar: List 1 (Raw Files) and List 2 (Chunks) */}
-                    <div className="col-md-4 col-lg-3 border-end border-secondary bg-dark d-flex flex-column" style={{ maxHeight: 'calc(100vh - 75px)' }}>
-                        {/* List 1: Raw Files Panel */}
+                    {/* Sidebar: List 1 (Raw Files) and List 2 (Known Events) */}
+                    <div className="col-md-5 col-lg-4 border-end border-secondary bg-dark d-flex flex-column" style={{ maxHeight: 'calc(100vh - 75px)', overflowY: 'auto' }}>
+                        {/* List 1: Raw Files Panel with Days, Hours, and Minutes */}
                         <RawFilesList
                             rawFiles={rawFiles}
                             showList1={showList1}
@@ -427,42 +371,54 @@ export default function TriageDashboard({
                             setDragRawStart={setDragRawStart}
                             dragRawDeselect={dragRawDeselect}
                             setDragRawDeselect={setDragRawDeselect}
+                            onOpenExplorerModal={() => setShowExplorerModal(true)}
+                            knownEvents={knownEvents}
+                            activeDay={activeDay}
+                            setActiveDay={setActiveDay}
+                            activeHour={activeHour}
+                            setActiveHour={setActiveHour}
+                            activeMinute={activeMinute}
+                            setActiveMinute={setActiveMinute}
                         />
 
-                        {/* List 2: Chunks List Panel */}
-                        <ChunksList
-                            chunks={chunks}
-                            selectedChunkKeys={selectedChunkKeys}
-                            setSelectedChunkKeys={setSelectedChunkKeys}
-                            activeChunkData={activeChunkData}
-                            chunkSelectionInfo={chunkSelectionInfo}
-                            analyzingSelection={analyzingSelection}
-                            onAnalyzeChunkSelection={handleAnalyzeChunkSelection}
-                            isDraggingChunks={isDraggingChunks}
-                            setIsDraggingChunks={setIsDraggingChunks}
-                            dragChunkStart={dragChunkStart}
-                            setDragChunkStart={setDragChunkStart}
-                            dragChunkDeselect={dragChunkDeselect}
-                            setDragChunkDeselect={setDragChunkDeselect}
+                        {/* List 2: Known Events Panel */}
+                        <KnownEventsList
+                            knownEvents={knownEvents}
+                            selectedKnownEventId={selectedKnownEventId}
+                            onSelectKnownEvent={handleSelectKnownEvent}
+                            onOpenDefineEventModal={() => setShowDefineModal(true)}
+                            onRefreshKnownEvents={fetchKnownEvents}
+                            rawFiles={rawFiles}
+                            loading={loadingEvents}
                         />
                     </div>
 
                     {/* Detail Panel: Waveform & Flagged Events */}
-                    <div className="col-md-8 col-lg-9 p-4 overflow-auto" style={{ maxHeight: 'calc(100vh - 75px)' }}>
+                    <div className="col-md-7 col-lg-8 p-3 overflow-auto" style={{ maxHeight: 'calc(100vh - 75px)' }}>
                         {!activeChunkData ? (
                             <div className="text-center text-muted mt-5 py-5">
-                                <h3>No chunk or files selected</h3>
-                                <p>Select files from List 1 or chunks from List 2 and click Analyze.</p>
+                                <h3>No dataset or files selected</h3>
+                                <p className="lead">
+                                    Select files from <strong>List 1</strong> or click a known event from <strong>List 2</strong> to inspect and analyze the signal waveform.
+                                </p>
+                                {rawFiles.length > 0 && (
+                                    <button
+                                        className="btn btn-warning fw-bold px-4 py-2 mt-2"
+                                        onClick={runFullScan}
+                                    >
+                                        ⚡ Analyze All {rawFiles.length} Loaded Files
+                                    </button>
+                                )}
                             </div>
                         ) : activeChunkData.status === 'pending' || activeChunkData.status === 'processing' ? (
                             <div className="text-center mt-5 py-5">
-                                <h4 className={activeChunkData.isCustom ? "text-info" : "text-muted"}>
+                                <h4 className="text-info">
                                     {activeChunkData.name} Ready for Analysis
                                 </h4>
                                 <button
                                     className="btn btn-warning fw-bold mt-3 px-4 py-2"
                                     disabled={activeChunkData.status === 'processing' || analyzingSelection}
-                                    onClick={() => handleAnalyzeChunkSelection()}
+                                    onClick={handleAnalyzeRawSelection}
                                 >
                                     {activeChunkData.status === 'processing' || analyzingSelection ? 'Processing...' : `Analyze ${activeChunkData.name}`}
                                 </button>
@@ -491,6 +447,15 @@ export default function TriageDashboard({
                 onOpenLocationModal={onOpenLocationModal}
                 user={user}
                 onEventCreated={handleEventCreated}
+            />
+
+            {/* Windows File Explorer Modal */}
+            <FileExplorerModal
+                show={showExplorerModal}
+                onClose={() => setShowExplorerModal(false)}
+                onImportFiles={handleImportFromExplorer}
+                currentLocation={currentLocation}
+                locations={locations}
             />
         </div>
     );

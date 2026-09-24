@@ -31,15 +31,12 @@ function AppContent() {
 
     // Global triage state
     const [rawFiles, setRawFiles] = useState([]);
-    const [chunks, setChunks] = useState([]);
     const [selectedKey, setSelectedKey] = useState(null);
     const [labels, setLabels] = useState({});
-    const [intervalMins, setIntervalMins] = useState(10);
 
     // Load locations on mount or when user changes
     useEffect(() => {
-        const userParam = user ? `?user_id=${user.id}` : '';
-        fetch(`${API_BASE_URL}/api/locations/${userParam}`)
+        fetch(`${API_BASE_URL}/api/locations/`)
             .then(res => res.json())
             .then(data => {
                 if (Array.isArray(data)) {
@@ -78,8 +75,9 @@ function AppContent() {
     const handleNavbarGoogleSuccess = () => {
         // GoogleAuthButton (via AuthContext) already stored the user;
         // Redirect from auth pages to main dashboard
+        const target = location.state?.from?.pathname || '/triage';
         if (location.pathname === '/' || location.pathname === '/login' || location.pathname === '/signup') {
-            navigate('/triage');
+            navigate(target, { replace: true });
         }
     };
 
@@ -218,10 +216,8 @@ function AppContent() {
                         <ProtectedRoute>
                             <TriageDashboard
                                 rawFiles={rawFiles} setRawFiles={setRawFiles}
-                                chunks={chunks} setChunks={setChunks}
                                 selectedKey={selectedKey} setSelectedKey={setSelectedKey}
                                 labels={labels} setLabels={setLabels}
-                                intervalMins={intervalMins} setIntervalMins={setIntervalMins}
                                 currentLocation={currentLocation}
                                 locations={locations}
                                 onOpenLocationModal={() => setShowLocationModal(true)}
