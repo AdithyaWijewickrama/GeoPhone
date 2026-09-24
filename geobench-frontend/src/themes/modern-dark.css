@@ -1,0 +1,372 @@
+/* ==========================================================================
+   GeoPhone — "Modern Dark" theme
+   --------------------------------------------------------------------------
+   Standalone theme layer keyed off the [data-theme="modern-dark"] attribute
+   that ThemeContext sets on <html> and <body>.
+
+   Load order contract: this file MUST be imported AFTER App.css so its rules
+   win the cascade (selectors here use html[data-theme=...] which also gives
+   them strictly higher specificity than App.css equivalents).
+
+   Palette: deep blue-slate canvas, elevated surfaces, indigo -> violet
+   accent gradient with cyan as secondary accent (Linear / Vercel style).
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+/* --------------------------------------------------------------------------
+   1. Design tokens
+   -------------------------------------------------------------------------- */
+html[data-theme="modern-dark"] {
+  --geo-theme-name: "modern-dark";
+
+  /* Canvas & surfaces */
+  --geo-bg-dark: #0a0e17;
+  --geo-bg-card: #111826;
+  --geo-bg-card-header: rgba(148, 163, 184, 0.06);
+  --geo-bg-input: #0c111d;
+  --geo-bg-input-focus: #141b2e;
+  --geo-navbar-bg: rgba(10, 14, 23, 0.82);
+  --geo-modal-bg: #121826;
+  --geo-modal-backdrop: rgba(4, 7, 15, 0.75);
+  --geo-dropdown-bg: #141b2e;
+  --geo-dropdown-hover: rgba(129, 140, 248, 0.1);
+
+  /* Lines */
+  --geo-border: #212a3e;
+  --geo-border-light: rgba(33, 42, 62, 0.65);
+  --geo-border-strong: #35415c;
+  --geo-navbar-border: rgba(51, 65, 85, 0.55);
+
+  /* Text */
+  --geo-text-main: #e2e8f0;
+  --geo-text-heading: #f1f5f9;
+  --geo-text-muted: #8b94a8;
+
+  /* Accents */
+  --geo-accent: #818cf8;
+  --geo-accent-strong: #6366f1;
+  --geo-accent-contrast: #ffffff;
+  --geo-accent-blue: #818cf8;
+  --geo-accent-2: #22d3ee;
+  --geo-accent-orange: #f472b6;
+  --geo-accent-yellow: #818cf8;
+  --geo-brand-color: #a5b4fc;
+  --geo-danger: #f87171;
+  --geo-success: #34d399;
+  --geo-warning: #fbbf24;
+
+  /* Data views */
+  --geo-table-hover: rgba(129, 140, 248, 0.07);
+  --geo-table-selected: rgba(129, 140, 248, 0.17);
+  --geo-table-stripe: rgba(148, 163, 184, 0.04);
+  --geo-badge-loc-bg: rgba(129, 140, 248, 0.13);
+  --geo-badge-loc-text: #a5b4fc;
+
+  /* Elevation */
+  --geo-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 12px 32px -12px rgba(0, 0, 0, 0.55);
+  --geo-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --geo-glow: 0 0 0 3px rgba(129, 140, 248, 0.22);
+  --geo-gradient: linear-gradient(135deg, #818cf8 0%, #c084fc 100%);
+
+  /* Chrome */
+  --geo-scrollbar-track: #0a0e17;
+  --geo-scrollbar-thumb: #2a3450;
+  --geo-btn-theme-bg: rgba(129, 140, 248, 0.12);
+  --geo-btn-theme-border: #818cf8;
+  --geo-btn-theme-text: #a5b4fc;
+
+  /* Modern extras (not used by App.css) */
+  --geo-font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --geo-font-display: 'Space Grotesk', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --geo-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --geo-radius-sm: 8px;
+  --geo-radius-md: 12px;
+  --geo-radius-lg: 16px;
+  --geo-speed: 180ms;
+  --geo-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* --------------------------------------------------------------------------
+   2. Typography
+   -------------------------------------------------------------------------- */
+html[data-theme="modern-dark"] body {
+  font-family: var(--geo-font-body);
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'ss01';
+  letter-spacing: 0.005em;
+}
+
+html[data-theme="modern-dark"] h1,
+html[data-theme="modern-dark"] h2,
+html[data-theme="modern-dark"] h3,
+html[data-theme="modern-dark"] h4,
+html[data-theme="modern-dark"] h5,
+html[data-theme="modern-dark"] h6,
+html[data-theme="modern-dark"] .navbar-brand {
+  font-family: var(--geo-font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--geo-text-heading);
+}
+
+html[data-theme="modern-dark"] p {
+  line-height: 1.6;
+}
+
+html[data-theme="modern-dark"] code,
+html[data-theme="modern-dark"] kbd,
+html[data-theme="modern-dark"] pre,
+html[data-theme="modern-dark"] samp {
+  font-family: var(--geo-font-mono);
+  font-size: 0.9em;
+}
+
+/* Gradient brand wordmark */
+html[data-theme="modern-dark"] .navbar-brand {
+  background: var(--geo-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* --------------------------------------------------------------------------
+   3. Base surfaces
+   -------------------------------------------------------------------------- */
+html[data-theme="modern-dark"] body,
+html[data-theme="modern-dark"] .app-container {
+  background-color: var(--geo-bg-dark);
+  color: var(--geo-text-main);
+}
+
+html[data-theme="modern-dark"] .card {
+  border-radius: var(--geo-radius-md);
+  box-shadow: var(--geo-shadow) !important;
+}
+
+html[data-theme="modern-dark"] .card:hover {
+  border-color: var(--geo-border-strong) !important;
+}
+
+html[data-theme="modern-dark"] .card-header {
+  border-radius: var(--geo-radius-md) var(--geo-radius-md) 0 0;
+  letter-spacing: 0.01em;
+}
+
+html[data-theme="modern-dark"] .modal-content {
+  border-radius: var(--geo-radius-lg);
+}
+
+html[data-theme="modern-dark"] .theme-dropdown-menu,
+html[data-theme="modern-dark"] .dropdown-menu {
+  border-radius: var(--geo-radius-lg);
+}
+
+/* --------------------------------------------------------------------------
+   4. Navbar (glass + sticky)
+   -------------------------------------------------------------------------- */
+html[data-theme="modern-dark"] .navbar {
+  background-color: var(--geo-navbar-bg) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(1.4);
+  position: sticky;
+  top: 0;
+  z-index: 1020;
+}
+
+/* Sliding gradient underline for nav links */
+html[data-theme="modern-dark"] .nav-link {
+  position: relative;
+}
+
+html[data-theme="modern-dark"] .nav-link::after {
+  content: "";
+  position: absolute;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: 2px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--geo-gradient);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--geo-speed) var(--geo-ease);
+}
+
+html[data-theme="modern-dark"] .nav-link:hover::after,
+html[data-theme="modern-dark"] .nav-link.active::after {
+  transform: scaleX(1);
+}
+
+/* --------------------------------------------------------------------------
+   5. Buttons
+   -------------------------------------------------------------------------- */
+html[data-theme="modern-dark"] .btn {
+  border-radius: var(--geo-radius-md);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: all var(--geo-speed) var(--geo-ease);
+}
+
+html[data-theme="modern-dark"] .btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--geo-shadow-sm);
+}
+
+html[data-theme="modern-dark"] .btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* Primary CTA (btn-warning is the app's primary action class) */
+html[data-theme="modern-dark"] .btn-warning {
+  background-color: var(--geo-accent-strong) !important;
+  border-color: transparent !important;
+  color: var(--geo-accent-contrast) !important;
+  background-image: var(--geo-gradient);
+}
+
+html[data-theme="modern-dark"] .btn-warning:hover {
+  filter: brightness(1.12);
+}
+
+/* Secondary outline CTA */
+html[data-theme="modern-dark"] .btn-outline-warning {
+  border-color: var(--geo-accent) !important;
+  color: var(--geo-accent) !important;
+  background-color: transparent !important;
+}
+
+html[data-theme="modern-dark"] .btn-outline-warning:hover {
+  background-color: var(--geo-accent-strong) !important;
+  border-color: var(--geo-accent-strong) !important;
+  color: var(--geo-accent-contrast) !important;
+}
+
+/* Danger stays semantic */
+html[data-theme="modern-dark"] .btn-outline-danger {
+  --geo-btn-danger: #f87171;
+  border-color: rgba(248, 113, 113, 0.55) !important;
+  color: #f87171 !important;
+}
+
+html[data-theme="modern-dark"] .btn-outline-danger:hover {
+  background-color: rgba(248, 113, 113, 0.12) !important;
+  border-color: #f87171 !important;
+  color: #fca5a5 !important;
+}
+
+/* Theme selector trigger: glow instead of flat fill */
+html[data-theme="modern-dark"] .btn-outline-theme:hover,
+html[data-theme="modern-dark"] .btn-outline-theme:focus {
+  background-color: var(--geo-btn-theme-bg) !important;
+  color: var(--geo-btn-theme-text) !important;
+  box-shadow: var(--geo-glow);
+  transform: none;
+}
+
+/* --------------------------------------------------------------------------
+   6. Forms
+   -------------------------------------------------------------------------- */
+html[data-theme="modern-dark"] .form-control,
+html[data-theme="modern-dark"] .form-select {
+  border-radius: var(--geo-radius-sm);
+  transition: border-color var(--geo-speed) var(--geo-ease),
+    box-shadow var(--geo-speed) var(--geo-ease),
+    background-color var(--geo-speed) var(--geo-ease);
+}
+
+html[data-theme="modern-dark"] .form-control:focus,
+html[data-theme="modern-dark"] .form-select:focus {
+  border-color: var(--geo-accent) !important;
+  box-shadow: var(--geo-glow) !important;
+  background-color: var(--geo-bg-input-focus) !important;
+}
+
+html[data-theme="modern-dark"] .form-label {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+html[data-theme="modern-dark"] input[type="range"] {
+  accent-color: var(--geo-accent);
+}
+
+/* --------------------------------------------------------------------------
+   7. Accent remaps (App.css hardcodes these per theme)
+   -------------------------------------------------------------------------- */
+html[data-theme="modern-dark"] .text-warning {
+  color: var(--geo-accent) !important;
+}
+
+html[data-theme="modern-dark"] .text-info {
+  color: var(--geo-accent-2) !important;
+}
+
+html[data-theme="modern-dark"] .table thead th {
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+}
+
+/* --------------------------------------------------------------------------
+   8. Interactions — selectable lists, focus, selection, scrollbar
+   -------------------------------------------------------------------------- */
+html[data-theme="modern-dark"] .selectable-item,
+html[data-theme="modern-dark"] .selectable-row,
+html[data-theme="modern-dark"] .list-group-item,
+html[data-theme="modern-dark"] .theme-option-btn {
+  transition: background-color var(--geo-speed) var(--geo-ease),
+    border-color var(--geo-speed) var(--geo-ease),
+    transform var(--geo-speed) var(--geo-ease);
+}
+
+html[data-theme="modern-dark"] .selectable-item:hover {
+  transform: translateY(-1px);
+  border-color: var(--geo-border-strong) !important;
+}
+
+html[data-theme="modern-dark"] .theme-option-btn:hover {
+  transform: translateX(2px);
+}
+
+/* Keyboard focus ring (inputs already glow via box-shadow) */
+html[data-theme="modern-dark"] :focus-visible:not(.form-control):not(.form-select) {
+  outline: 2px solid var(--geo-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Text selection */
+html[data-theme="modern-dark"] ::selection {
+  background: rgba(129, 140, 248, 0.35);
+  color: #f8fafc;
+}
+
+/* Slimmer, rounded scrollbar */
+html[data-theme="modern-dark"] ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+html[data-theme="modern-dark"] ::-webkit-scrollbar-thumb {
+  background: var(--geo-scrollbar-thumb);
+  border-radius: 8px;
+  border: 2px solid var(--geo-scrollbar-track);
+  background-clip: padding-box;
+}
+
+html[data-theme="modern-dark"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--geo-border-strong);
+  background-clip: padding-box;
+}
+
+/* --------------------------------------------------------------------------
+   9. Accessibility — respect reduced motion
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="modern-dark"] *,
+  html[data-theme="modern-dark"] *::before,
+  html[data-theme="modern-dark"] *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
