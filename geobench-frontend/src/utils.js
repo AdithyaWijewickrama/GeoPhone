@@ -35,6 +35,40 @@ export const formatTime = (ms) => {
     return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
 };
 
+export const formatDateTime = (ms) => {
+    if (!ms) return '';
+    const d = new Date(ms);
+    if (isNaN(d.getTime())) return '';
+    const pad = (x, n = 2) => String(x).padStart(n, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+};
+
+export const toDatetimeLocalString = (dateOrMs) => {
+    if (!dateOrMs) return '';
+    const date = typeof dateOrMs === 'number' ? new Date(dateOrMs) : dateOrMs;
+    if (!date || isNaN(date.getTime())) return '';
+    const pad = (n) => n.toString().padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
+
+export const parseFilenameDate = (filename) => {
+    if (!filename) return new Date();
+    const match = filename.match(/(\d{4}-\d{2}-\d{2}[_T]\d{2}[-:]\d{2}[-:]\d{2})/);
+    if (!match) return new Date();
+    const raw = match[1];
+    const parts = raw.split(/[_T]/);
+    return new Date(`${parts[0]}T${parts[1].replace(/-/g, ':')}`);
+};
+
+export const getFileDateMs = (file) => {
+    if (!file) return Date.now();
+    const parsed = parseFilenameDate(file.name);
+    if (parsed && !isNaN(parsed.getTime())) {
+        return parsed.getTime();
+    }
+    return file.lastModified || Date.now();
+};
+
 export const formatDuration = (ms) => {
     if (ms < 1000) {
         return `${Math.round(ms)}ms`; // e.g., 450ms

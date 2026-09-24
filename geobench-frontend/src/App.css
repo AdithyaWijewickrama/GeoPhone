@@ -1,25 +1,132 @@
 /* ==========================================================================
-   Global Theme Settings
+   Global Theme Variables & Definitions
    ========================================================================== */
-:root {
+
+/* 1. CURRENT (Classic Warm Earthy Dark Theme) */
+:root,
+[data-theme="current"] {
+  --geo-theme-name: "current";
   --geo-bg-dark: #16120e;
   --geo-bg-card: #1e1812;
+  --geo-bg-card-header: rgba(0, 0, 0, 0.25);
+  --geo-bg-input: #0c0a08;
+  --geo-bg-input-focus: #15110d;
   --geo-border: #372c20;
-  --geo-text-main: #ffffff; /* Brightened to pure white for maximum readability */
-  --geo-text-muted: #b0a89f; /* Brightened for better contrast */
+  --geo-border-light: rgba(55, 44, 32, 0.6);
+  --geo-text-main: #ffffff;
+  --geo-text-muted: #b0a89f;
   --geo-accent-blue: #348abd;
   --geo-accent-orange: #d9604a;
   --geo-accent-yellow: #f1c40f;
+  --geo-brand-color: #f1c40f;
+  --geo-navbar-bg: #16120e;
+  --geo-navbar-border: #372c20;
+  --geo-modal-bg: #1e1812;
+  --geo-modal-backdrop: rgba(0, 0, 0, 0.85);
+  --geo-table-hover: rgba(255, 255, 255, 0.05);
+  --geo-table-selected: rgba(52, 138, 189, 0.25);
+  --geo-table-stripe: rgba(0, 0, 0, 0.15);
+  --geo-badge-loc-bg: #27211a;
+  --geo-badge-loc-text: #f1c40f;
+  --geo-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  --geo-dropdown-bg: #1a140f;
+  --geo-dropdown-hover: #292018;
+  --geo-scrollbar-track: #16120e;
+  --geo-scrollbar-thumb: #372c20;
+  --geo-btn-theme-bg: rgba(241, 196, 15, 0.1);
+  --geo-btn-theme-border: #f1c40f;
+  --geo-btn-theme-text: #f1c40f;
 }
 
-body {
+/* 2. MODERN DARK (Sleek Charcoal/Slate Dark Theme) */
+[data-theme="modern-dark"] {
+  --geo-theme-name: "modern-dark";
+  --geo-bg-dark: #090d16;
+  --geo-bg-card: #0f172a;
+  --geo-bg-card-header: #1e293b;
+  --geo-bg-input: #080d1a;
+  --geo-bg-input-focus: #111a2e;
+  --geo-border: #1e293b;
+  --geo-border-light: rgba(51, 65, 85, 0.6);
+  --geo-text-main: #f8fafc;
+  --geo-text-muted: #94a3b8;
+  --geo-accent-blue: #38bdf8;
+  --geo-accent-orange: #f43f5e;
+  --geo-accent-yellow: #38bdf8;
+  --geo-brand-color: #38bdf8;
+  --geo-navbar-bg: #0b1120;
+  --geo-navbar-border: #1e293b;
+  --geo-modal-bg: #0f172a;
+  --geo-modal-backdrop: rgba(3, 7, 18, 0.88);
+  --geo-table-hover: rgba(56, 189, 248, 0.08);
+  --geo-table-selected: rgba(56, 189, 248, 0.22);
+  --geo-table-stripe: rgba(30, 41, 59, 0.3);
+  --geo-badge-loc-bg: #172554;
+  --geo-badge-loc-text: #38bdf8;
+  --geo-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+  --geo-dropdown-bg: #0f172a;
+  --geo-dropdown-hover: #1e293b;
+  --geo-scrollbar-track: #090d16;
+  --geo-scrollbar-thumb: #334155;
+  --geo-btn-theme-bg: rgba(56, 189, 248, 0.12);
+  --geo-btn-theme-border: #38bdf8;
+  --geo-btn-theme-text: #38bdf8;
+}
+
+/* 3. MODERN WHITE (Professional Crisp Light Theme) */
+[data-theme="modern-white"] {
+  --geo-theme-name: "modern-white";
+  --geo-bg-dark: #f8fafc;
+  --geo-bg-card: #ffffff;
+  --geo-bg-card-header: #f1f5f9;
+  --geo-bg-input: #ffffff;
+  --geo-bg-input-focus: #f8fafc;
+  --geo-border: #e2e8f0;
+  --geo-border-light: #edf2f7;
+  --geo-text-main: #0f172a;
+  --geo-text-muted: #64748b;
+  --geo-accent-blue: #0284c7;
+  --geo-accent-orange: #ea580c;
+  --geo-accent-yellow: #0284c7;
+  --geo-brand-color: #0369a1;
+  --geo-navbar-bg: #ffffff;
+  --geo-navbar-border: #e2e8f0;
+  --geo-modal-bg: #ffffff;
+  --geo-modal-backdrop: rgba(15, 23, 42, 0.6);
+  --geo-table-hover: #f1f5f9;
+  --geo-table-selected: rgba(2, 132, 199, 0.12);
+  --geo-table-stripe: #f8fafc;
+  --geo-badge-loc-bg: #e0f2fe;
+  --geo-badge-loc-text: #0369a1;
+  --geo-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+  --geo-dropdown-bg: #ffffff;
+  --geo-dropdown-hover: #f1f5f9;
+  --geo-scrollbar-track: #f1f5f9;
+  --geo-scrollbar-thumb: #cbd5e1;
+  --geo-btn-theme-bg: #f0f9ff;
+  --geo-btn-theme-border: #0284c7;
+  --geo-btn-theme-text: #0284c7;
+}
+
+/* ==========================================================================
+   Base & Core Typography
+   ========================================================================== */
+html, body {
   background-color: var(--geo-bg-dark) !important;
   color: var(--geo-text-main) !important;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  min-height: 100vh;
 }
 
-/* Force headings, paragraphs, and lists to use the light text color */
+.app-container {
+  background-color: var(--geo-bg-dark);
+  color: var(--geo-text-main);
+  min-height: 100vh;
+}
+
 h1, h2, h3, h4, h5, h6, p, label, li, span, div {
   color: inherit;
 }
@@ -29,26 +136,143 @@ h1, h2, h3, h4, h5, h6, p, label, li, span, div {
 }
 
 /* ==========================================================================
+   Bootstrap Overrides for Theme Consistency
+   ========================================================================== */
+.bg-dark {
+  background-color: var(--geo-bg-dark) !important;
+}
+
+.text-light {
+  color: var(--geo-text-main) !important;
+}
+
+.border-secondary {
+  border-color: var(--geo-border) !important;
+}
+
+.border-bottom.border-secondary,
+.border-top.border-secondary,
+.border-start.border-secondary,
+.border-end.border-secondary {
+  border-color: var(--geo-border) !important;
+}
+
+/* ==========================================================================
    Navigation Bar
    ========================================================================== */
 .navbar {
-  background-color: var(--geo-bg-dark) !important;
-  border-bottom: 2px solid var(--geo-border) !important;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  background-color: var(--geo-navbar-bg) !important;
+  border-bottom: 1px solid var(--geo-navbar-border) !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .navbar-brand {
-  color: var(--geo-accent-yellow) !important;
+  color: var(--geo-brand-color) !important;
   letter-spacing: 0.5px;
+  font-weight: 700;
 }
 
 .nav-link {
   color: var(--geo-text-muted) !important;
+  font-weight: 500;
+  transition: color 0.15s ease;
 }
 
 .nav-link:hover,
 .nav-link.active {
   color: var(--geo-text-main) !important;
+}
+
+[data-theme="modern-white"] .nav-link:hover,
+[data-theme="modern-white"] .nav-link.active {
+  color: var(--geo-accent-blue) !important;
+}
+
+/* ==========================================================================
+   Theme Changer / Selector Styles
+   ========================================================================== */
+.btn-outline-theme {
+  background-color: var(--geo-btn-theme-bg);
+  border: 1px solid var(--geo-btn-theme-border);
+  color: var(--geo-btn-theme-text);
+  font-weight: 600;
+  transition: all 0.2s ease;
+  border-radius: 6px;
+  padding: 0.28rem 0.65rem;
+}
+
+.btn-outline-theme:hover,
+.btn-outline-theme:focus {
+  background-color: var(--geo-btn-theme-border);
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+}
+
+[data-theme="current"] .btn-outline-theme:hover {
+  color: #000000;
+}
+
+.theme-dropdown-menu {
+  background-color: var(--geo-dropdown-bg) !important;
+  border: 1px solid var(--geo-border) !important;
+  border-radius: 10px;
+  box-shadow: var(--geo-shadow) !important;
+  animation: themeFadeIn 0.15s ease-out;
+}
+
+@keyframes themeFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.theme-dropdown-header {
+  border-color: var(--geo-border) !important;
+}
+
+.theme-header-text {
+  color: var(--geo-text-muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.8px;
+}
+
+.theme-option-btn {
+  background-color: transparent;
+  color: var(--geo-text-main) !important;
+  border: 1px solid transparent;
+  text-align: left;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  cursor: pointer;
+  width: 100%;
+}
+
+.theme-option-btn:hover {
+  background-color: var(--geo-dropdown-hover) !important;
+  color: var(--geo-text-main) !important;
+}
+
+.theme-option-btn.active-theme-item {
+  background-color: var(--geo-btn-theme-bg) !important;
+  border-color: var(--geo-btn-theme-border) !important;
+}
+
+.theme-option-title {
+  color: var(--geo-text-main);
+  font-size: 0.88rem;
+}
+
+.theme-option-desc {
+  color: var(--geo-text-muted);
+}
+
+.theme-active-badge {
+  background-color: var(--geo-btn-theme-border);
+  color: #ffffff;
+  font-size: 0.65rem;
+}
+
+[data-theme="current"] .theme-active-badge {
+  color: #000000;
 }
 
 /* ==========================================================================
@@ -58,15 +282,21 @@ h1, h2, h3, h4, h5, h6, p, label, li, span, div {
   background-color: var(--geo-bg-card) !important;
   border: 1px solid var(--geo-border) !important;
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--geo-shadow) !important;
   color: var(--geo-text-main) !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .card-header {
-  background-color: rgba(0, 0, 0, 0.2) !important;
+  background-color: var(--geo-bg-card-header) !important;
   border-bottom: 1px solid var(--geo-border) !important;
   color: var(--geo-text-main) !important;
   font-weight: 600;
+}
+
+.card-body {
+  background-color: var(--geo-bg-card);
+  color: var(--geo-text-main) !important;
 }
 
 /* ==========================================================================
@@ -74,15 +304,19 @@ h1, h2, h3, h4, h5, h6, p, label, li, span, div {
    ========================================================================== */
 .table {
   color: var(--geo-text-main) !important;
+  border-color: var(--geo-border) !important;
 }
 
 .table-dark {
   background-color: transparent !important;
+  color: var(--geo-text-main) !important;
 }
 
-.table th, .table td {
+.table th,
+.table td {
   color: var(--geo-text-main) !important;
   background-color: transparent !important;
+  border-color: var(--geo-border) !important;
 }
 
 .table thead th {
@@ -93,49 +327,145 @@ h1, h2, h3, h4, h5, h6, p, label, li, span, div {
 }
 
 .table tbody tr {
-  border-bottom: 1px solid rgba(55, 44, 32, 0.5) !important;
+  border-bottom: 1px solid var(--geo-border-light) !important;
+  transition: background-color 0.12s ease;
 }
 
 .table tbody tr:hover td {
-  background-color: rgba(255, 255, 255, 0.05) !important;
+  background-color: var(--geo-table-hover) !important;
 }
 
-/* Selected/Labeled Row State */
-.table-success td, .table-success th {
-  background-color: rgba(52, 138, 189, 0.2) !important;
+.table-success td,
+.table-success th {
+  background-color: var(--geo-table-selected) !important;
   color: var(--geo-text-main) !important;
 }
 
 /* ==========================================================================
    Forms, Inputs & Buttons
    ========================================================================== */
-.form-control, .form-select {
-  background-color: #0c0a08 !important;
+.form-control,
+.form-select {
+  background-color: var(--geo-bg-input) !important;
   border: 1px solid var(--geo-border) !important;
   color: var(--geo-text-main) !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
 
-.form-control:focus, .form-select:focus {
+.form-control:focus,
+.form-select:focus {
+  background-color: var(--geo-bg-input-focus) !important;
   border-color: var(--geo-accent-blue) !important;
-  box-shadow: 0 0 0 0.25rem rgba(52, 138, 189, 0.25) !important;
+  box-shadow: 0 0 0 0.25rem rgba(56, 189, 248, 0.2) !important;
+  color: var(--geo-text-main) !important;
 }
 
 .form-control::placeholder {
   color: var(--geo-text-muted) !important;
 }
 
+[data-theme="modern-white"] .form-control::placeholder {
+  color: #94a3b8 !important;
+}
+
 .btn-warning {
   background-color: var(--geo-accent-yellow) !important;
   border-color: var(--geo-accent-yellow) !important;
-  color: #000 !important;
+  color: #000000 !important;
   font-weight: 600;
 }
 
-.btn-warning:hover {
-  background-color: #f3ce34 !important;
-  border-color: #f3ce34 !important;
+[data-theme="modern-dark"] .btn-warning {
+  background-color: #38bdf8 !important;
+  border-color: #38bdf8 !important;
+  color: #090d16 !important;
 }
 
+[data-theme="modern-white"] .btn-warning {
+  background-color: #0284c7 !important;
+  border-color: #0284c7 !important;
+  color: #ffffff !important;
+}
+
+.btn-warning:hover {
+  filter: brightness(1.1);
+}
+
+.btn-outline-warning {
+  border-color: var(--geo-accent-yellow) !important;
+  color: var(--geo-accent-yellow) !important;
+}
+
+[data-theme="modern-dark"] .btn-outline-warning {
+  border-color: #38bdf8 !important;
+  color: #38bdf8 !important;
+}
+
+[data-theme="modern-white"] .btn-outline-warning {
+  border-color: #0284c7 !important;
+  color: #0284c7 !important;
+}
+
+.btn-outline-warning:hover {
+  background-color: var(--geo-accent-yellow) !important;
+  color: #000000 !important;
+}
+
+[data-theme="modern-dark"] .btn-outline-warning:hover {
+  background-color: #38bdf8 !important;
+  color: #090d16 !important;
+}
+
+[data-theme="modern-white"] .btn-outline-warning:hover {
+  background-color: #0284c7 !important;
+  color: #ffffff !important;
+}
+
+[data-theme="modern-white"] .btn-close-white {
+  filter: none !important;
+}
+
+/* Modals */
+.modal-content {
+  background-color: var(--geo-modal-bg) !important;
+  border: 1px solid var(--geo-border) !important;
+  color: var(--geo-text-main) !important;
+  box-shadow: var(--geo-shadow) !important;
+}
+
+.modal-header,
+.modal-footer {
+  border-color: var(--geo-border) !important;
+}
+
+.list-group-item {
+  background-color: var(--geo-bg-card) !important;
+  color: var(--geo-text-main) !important;
+  border-color: var(--geo-border) !important;
+}
+
+.list-group-item:hover {
+  background-color: var(--geo-table-hover) !important;
+}
+
+/* Dynamic Accent Colors */
+[data-theme="modern-dark"] .text-warning {
+  color: #38bdf8 !important;
+}
+
+[data-theme="modern-white"] .text-warning {
+  color: #0284c7 !important;
+}
+
+[data-theme="modern-dark"] .text-info {
+  color: #38bdf8 !important;
+}
+
+[data-theme="modern-white"] .text-info {
+  color: #0369a1 !important;
+}
+
+/* Range input accent */
 input[type=range] {
   accent-color: var(--geo-accent-orange);
 }
@@ -144,13 +474,60 @@ input[type=range] {
    Scrollbars (Webkit)
    ========================================================================== */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--geo-bg-dark);
+  background: var(--geo-scrollbar-track);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--geo-border);
+  background: var(--geo-scrollbar-thumb);
   border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  filter: brightness(1.2);
+}
+
+/* ==========================================================================
+   Selection & Drag Styles
+   ========================================================================== */
+.user-select-none {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.selectable-item {
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.selectable-item.selected {
+  background-color: var(--geo-table-selected) !important;
+  border-left: 4px solid var(--geo-accent-blue) !important;
+}
+
+.selectable-row {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease;
+}
+
+.selectable-row.selected-row td {
+  background-color: var(--geo-table-selected) !important;
+  color: var(--geo-text-main) !important;
+}
+
+.drag-handle {
+  cursor: grab;
+  opacity: 0.6;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.badge-location {
+  background-color: var(--geo-badge-loc-bg);
+  border: 1px solid var(--geo-border);
+  color: var(--geo-badge-loc-text);
 }

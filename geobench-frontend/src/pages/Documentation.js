@@ -19,7 +19,7 @@ export default function Documentation() {
                 <div className="card-header border-secondary d-flex justify-content-between align-items-center">
                     <span className="text-light fs-5">1. The Unsupervised Detection Pipeline</span>
                 </div>
-                <div className="card-body" style={{ backgroundColor: '#1e1812' }}>
+                <div className="card-body">
                     <p className="text-light">
                         The current model does not "learn" from past data. It is an unsupervised mathematical pipeline that detects anomalies by calculating rolling statistics on raw voltage as it flows in.
                     </p>
@@ -50,7 +50,7 @@ export default function Documentation() {
                 <div className="card-header border-secondary d-flex justify-content-between align-items-center">
                     <span className="text-light fs-5">2. STA/LTA (Short-Time / Long-Time Average)</span>
                 </div>
-                <div className="card-body" style={{ backgroundColor: '#1e1812' }}>
+                <div className="card-body">
                     <p className="text-light">
                         This is the foundational algorithm used in traditional seismology to detect earthquakes. It calculates a continuous ratio between an immediate time window and a historical time window to identify sudden bursts of energy while ignoring gradual environmental changes (like temperature drift or wind).
                     </p>
@@ -80,7 +80,7 @@ export default function Documentation() {
                 <div className="card-header border-secondary d-flex justify-content-between align-items-center">
                     <span className="text-light fs-5">3. The Dashboard "Score" (Robust Z-Score)</span>
                 </div>
-                <div className="card-body" style={{ backgroundColor: '#1e1812' }}>
+                <div className="card-body">
                     <p className="text-light">
                         A raw STA/LTA ratio of 5.0 might be meaningless in a noisy factory but highly significant in a quiet forest. To standardize this, we convert the ratio into an <strong>Anomaly Score</strong> plotted in orange on your dashboard.
                     </p>
@@ -112,7 +112,7 @@ export default function Documentation() {
                 <div className="card-header border-secondary d-flex justify-content-between align-items-center">
                     <span className="text-light fs-5">4. Transitioning to Supervised ML</span>
                 </div>
-                <div className="card-body" style={{ backgroundColor: '#1e1812' }}>
+                <div className="card-body">
                     <p className="text-light mb-0">
                         The entire purpose of the Data Triage dashboard is to transition from this math-based guessing to true <strong>supervised machine learning</strong>. By manually labeling events, you are generating the dataset required to train a new model (like a Random Forest or Convolutional Neural Network).
                     </p>
