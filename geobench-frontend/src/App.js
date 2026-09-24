@@ -5,6 +5,8 @@ import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ThemeSelector from './components/ThemeSelector';
 
+
+
 // Import page components
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -13,6 +15,8 @@ import LabeledData from './pages/LabeledData';
 import Forecasting from './pages/Forecasting';
 import Documentation from './pages/Documentation';
 import LocationModal from './components/LocationModal';
+import ProtectedRoute from './components/ProtectedRoute';
+import GoogleAuthButton from './components/GoogleAuthButton';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL || 'http://127.0.0.1:8000';
 
@@ -27,15 +31,12 @@ function AppContent() {
 
     // Global triage state
     const [rawFiles, setRawFiles] = useState([]);
-    const [chunks, setChunks] = useState([]);
     const [selectedKey, setSelectedKey] = useState(null);
     const [labels, setLabels] = useState({});
-    const [intervalMins, setIntervalMins] = useState(10);
 
     // Load locations on mount or when user changes
     useEffect(() => {
-        const userParam = user ? `?user_id=${user.id}` : '';
-        fetch(`${API_BASE_URL}/api/locations/${userParam}`)
+        fetch(`${API_BASE_URL}/api/locations/`)
             .then(res => res.json())
             .then(data => {
                 if (Array.isArray(data)) {
@@ -69,6 +70,19 @@ function AppContent() {
     const handleLogout = async () => {
         await logout();
         navigate('/login');
+    };
+
+    const handleNavbarGoogleSuccess = () => {
+        // GoogleAuthButton (via AuthContext) already stored the user;
+        // Redirect from auth pages to main dashboard
+        const target = location.state?.from?.pathname || '/triage';
+        if (location.pathname === '/' || location.pathname === '/login' || location.pathname === '/signup') {
+            navigate(target, { replace: true });
+        }
+    };
+
+    const handleNavbarGoogleError = (err) => {
+        console.error('Navbar Google sign-in failed:', err);
     };
 
     const isAuthPage = location.pathname === '/' || location.pathname === '/login' || location.pathname === '/signup';
@@ -170,12 +184,12 @@ function AppContent() {
                             </div>
                         ) : (
                             <div className="d-flex align-items-center gap-2">
-                                <Link className="btn btn-outline-warning btn-sm" to="/login">
-                                    Sign In
-                                </Link>
-                                <Link className="btn btn-warning btn-sm text-dark fw-bold" to="/signup">
-                                    Sign Up
-                                </Link>
+                                <GoogleAuthButton
+                                    text="Sign in with Google"
+                                    compact
+                                    onSuccess={handleNavbarGoogleSuccess}
+                                    onError={handleNavbarGoogleError}
+                                />
                             </div>
                         )}
                     </div>
@@ -199,26 +213,32 @@ function AppContent() {
                     <Route path="/login" element={<Login />} />
                     <Route path="/signup" element={<Signup />} />
                     <Route path="/triage" element={
-                        <TriageDashboard
-                            rawFiles={rawFiles} setRawFiles={setRawFiles}
-                            chunks={chunks} setChunks={setChunks}
-                            selectedKey={selectedKey} setSelectedKey={setSelectedKey}
-                            labels={labels} setLabels={setLabels}
-                            intervalMins={intervalMins} setIntervalMins={setIntervalMins}
-                            currentLocation={currentLocation}
-                            locations={locations}
-                            onOpenLocationModal={() => setShowLocationModal(true)}
-                            onLocationCreated={handleLocationCreated}
-                            onSelectLocation={handleSelectLocation}
-                        />
+                        <ProtectedRoute>
+                            <TriageDashboard
+                                rawFiles={rawFiles} setRawFiles={setRawFiles}
+                                selectedKey={selectedKey} setSelectedKey={setSelectedKey}
+                                labels={labels} setLabels={setLabels}
+                                currentLocation={currentLocation}
+                                locations={locations}
+                                onOpenLocationModal={() => setShowLocationModal(true)}
+                                onLocationCreated={handleLocationCreated}
+                                onSelectLocation={handleSelectLocation}
+                            />
+                        </ProtectedRoute>
                     } />
                     <Route path="/labels" element={
-                        <LabeledData
-                            currentLocation={currentLocation}
-                            locations={locations}
-                        />
+                        <ProtectedRoute>
+                            <LabeledData
+                                currentLocation={currentLocation}
+                                locations={locations}
+                            />
+                        </ProtectedRoute>
                     } />
-                    <Route path="/forecast" element={<Forecasting />} />
+                    <Route path="/forecast" element={
+                        <ProtectedRoute>
+                            <Forecasting />
+                        </ProtectedRoute>
+                    } />
                     <Route path="/docs" element={<Documentation />} />
                 </Routes>
             </div>

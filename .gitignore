@@ -79,3 +79,4 @@ Desktop.ini
 *.njsproj
 *.sln
 *.swp
+/geobench-frontend/public/img.png

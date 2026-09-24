@@ -126,18 +126,29 @@ class GeoBenchApiTests(TestCase):
         self.assertEqual(res_again.json()['user']['email'], 'googleuser@gmail.com')
 
     def test_location_crud_with_user(self):
-        # List locations
+        # List locations (all available locations returned regardless of user query)
         res = self.client.get(reverse('locations'))
         self.assertEqual(res.status_code, 200)
         data = res.json()
         self.assertEqual(len(data), 2)
         names = [d['name'] for d in data]
         self.assertIn("Seismic Site Alpha", names)
+        self.assertIn("Seismic Site Beta", names)
+
+        # Check with user_id param - all available locations still returned for popups
+        res_with_user = self.client.get(reverse('locations') + f'?user_id={self.user.id}')
+        self.assertEqual(res_with_user.status_code, 200)
+        self.assertEqual(len(res_with_user.json()), 2)
 
         # Check user_id in location
         loc1_data = next(d for d in data if d['name'] == 'Seismic Site Alpha')
         self.assertEqual(loc1_data['user_id'], self.user.id)
         self.assertEqual(loc1_data['user_name'], self.user.username)
+
+        # Check unassigned location user_name is None
+        loc2_data = next(d for d in data if d['name'] == 'Seismic Site Beta')
+        self.assertIsNone(loc2_data['user_id'])
+        self.assertIsNone(loc2_data['user_name'])
 
         # Create new location with user_id
         new_loc_payload = {
@@ -262,3 +273,77 @@ class GeoBenchApiTests(TestCase):
         self.assertEqual(labels[0]['location_name'], 'Seismic Site Alpha')
         self.assertEqual(labels[0]['user_id'], self.user.id)
         self.assertEqual(labels[0]['user_name'], self.user.username)
+
+    def test_timestamp_processing_year_2026(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from .ml_model import process_geophone_csv, process_geophone_chunk, generate_event_plot
+        import pandas as pd
+
+        # 1. Test relative seconds with timestamped filename (e.g. 2026-07-29_21-58-26.csv)
+        csv_relative = "timestamp,voltage\n0.0,0.5\n0.01,0.6\n0.02,0.4\n"
+        f1 = SimpleUploadedFile("2026-07-29_21-58-26.csv", csv_relative.encode('utf-8'), content_type="text/csv")
+        res1 = process_geophone_csv(f1, filename="2026-07-29_21-58-26.csv")
+        self.assertTrue(res1['ok'])
+        dt1 = pd.to_datetime(res1['startTime'], unit='ms')
+        self.assertEqual(dt1.year, 2026)
+        self.assertEqual(dt1.month, 7)
+        self.assertEqual(dt1.day, 29)
+
+        # 2. Test epoch seconds (e.g. 1787600000 which is in 2026)
+        csv_epoch_s = "timestamp,voltage\n1787600000,0.5\n1787600001,0.6\n"
+        f2 = SimpleUploadedFile("data_epoch_s.csv", csv_epoch_s.encode('utf-8'), content_type="text/csv")
+        res2 = process_geophone_csv(f2)
+        self.assertTrue(res2['ok'])
+        dt2 = pd.to_datetime(res2['startTime'], unit='ms')
+        self.assertGreaterEqual(dt2.year, 2026)
+
+        # 3. Test epoch milliseconds (e.g. 1787600000000)
+        csv_epoch_ms = "timestamp,voltage\n1787600000000,0.5\n1787600001000,0.6\n"
+        f3 = SimpleUploadedFile("data_epoch_ms.csv", csv_epoch_ms.encode('utf-8'), content_type="text/csv")
+        res3 = process_geophone_csv(f3)
+        self.assertTrue(res3['ok'])
+        dt3 = pd.to_datetime(res3['startTime'], unit='ms')
+        self.assertGreaterEqual(dt3.year, 2026)
+
+        # 4. Test chunk processing with 2026 filenames
+        f_chunk1 = SimpleUploadedFile("2026-09-24_10-00-00.csv", csv_relative.encode('utf-8'), content_type="text/csv")
+        f_chunk2 = SimpleUploadedFile("2026-09-24_10-01-00.csv", csv_relative.encode('utf-8'), content_type="text/csv")
+        chunk_res = process_geophone_chunk([f_chunk1, f_chunk2], ["2026-09-24_10-00-00.csv", "2026-09-24_10-01-00.csv"])
+        self.assertTrue(chunk_res['ok'])
+        chunk_dt = pd.to_datetime(chunk_res['startTime'], unit='ms')
+        self.assertEqual(chunk_dt.year, 2026)
+
+        # 5. Test plot generation
+        f_plot = SimpleUploadedFile("2026-09-24_10-00-00.csv", csv_relative.encode('utf-8'), content_type="text/csv")
+        plot_res = generate_event_plot([f_plot], chunk_res['startTime'], chunk_res['endTime'])
+        self.assertTrue(plot_res['ok'])
+        self.assertIn('image', plot_res)
+
+        # 6. Test plot endpoints with JSON times/volts data
+        json_plot_res = self.client.post(
+            reverse('get_event_plot'),
+            data=json.dumps({
+                'times': chunk_res['times'],
+                'volts': chunk_res['volts'],
+                'start_time': chunk_res['startTime'],
+                'end_time': chunk_res['endTime']
+            }),
+            content_type='application/json'
+        )
+        self.assertEqual(json_plot_res.status_code, 200)
+        self.assertTrue(json_plot_res.json().get('ok'))
+        self.assertIn('image', json_plot_res.json())
+
+        # Test plot_event alias
+        plot_event_res = self.client.post(
+            reverse('plot_event'),
+            data=json.dumps({
+                'times': chunk_res['times'],
+                'volts': chunk_res['volts'],
+                'event_start': chunk_res['startTime'],
+                'event_end': chunk_res['endTime']
+            }),
+            content_type='application/json'
+        )
+        self.assertEqual(plot_event_res.status_code, 200)
+        self.assertTrue(plot_event_res.json().get('ok'))

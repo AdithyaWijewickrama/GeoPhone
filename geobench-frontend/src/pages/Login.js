@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import GoogleAuthButton from '../components/GoogleAuthButton';
 
 export default function Login() {
     const navigate = useNavigate();
+    const location = useLocation();
     const { login } = useAuth();
     const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+
+    const from = location.state?.from?.pathname || '/triage';
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -17,7 +20,7 @@ export default function Login() {
         setLoading(true);
         try {
             await login(identifier, password);
-            navigate('/triage');
+            navigate(from, { replace: true });
         } catch (err) {
             setError(err.message || 'Login failed. Please check your credentials.');
         } finally {
@@ -26,11 +29,12 @@ export default function Login() {
     };
 
     const handleGoogleSuccess = () => {
-        navigate('/triage');
+        navigate(from, { replace: true });
     };
 
     const handleGoogleError = (err) => {
-        setError(err || 'Google sign-in failed');
+        const errorMsg = typeof err === 'string' ? err : (err?.message || 'Google sign-in failed');
+        setError(errorMsg);
     };
 
     return (

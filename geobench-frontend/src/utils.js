@@ -30,34 +30,89 @@ export const mergeEvents = (blocks, threshold) => {
 };
 
 export const formatTime = (ms) => {
-    const d = new Date(ms);
+    if (ms === null || ms === undefined || ms === '') return '';
+    let num = typeof ms === 'number' ? ms : (typeof ms === 'string' && /^\d+(\.\d+)?$/.test(ms.trim()) ? Number(ms) : NaN);
+    let d;
+    if (!isNaN(num)) {
+        if (num > 0 && num < 1e11) {
+            num = num * 1000;
+        }
+        d = new Date(num);
+    } else if (ms instanceof Date) {
+        d = ms;
+    } else {
+        d = new Date(ms);
+    }
+    if (isNaN(d.getTime())) return '';
     const pad = (x, n = 2) => String(x).padStart(n, '0');
     return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
 };
 
 export const formatDateTime = (ms) => {
-    if (!ms) return '';
-    const d = new Date(ms);
+    if (!ms && ms !== 0) return '';
+    let num = typeof ms === 'number' ? ms : (typeof ms === 'string' && /^\d+(\.\d+)?$/.test(ms.trim()) ? Number(ms) : NaN);
+    let d;
+    if (!isNaN(num)) {
+        if (num > 0 && num < 1e11) {
+            num = num * 1000;
+        }
+        d = new Date(num);
+    } else if (ms instanceof Date) {
+        d = ms;
+    } else {
+        d = new Date(ms);
+    }
     if (isNaN(d.getTime())) return '';
+    let year = d.getFullYear();
+    if (year < 2000) {
+        year = 2026;
+    }
     const pad = (x, n = 2) => String(x).padStart(n, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    return `${year}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 };
 
 export const toDatetimeLocalString = (dateOrMs) => {
-    if (!dateOrMs) return '';
-    const date = typeof dateOrMs === 'number' ? new Date(dateOrMs) : dateOrMs;
-    if (!date || isNaN(date.getTime())) return '';
+    if (!dateOrMs && dateOrMs !== 0) return '';
+    let d;
+    if (typeof dateOrMs === 'number') {
+        let num = dateOrMs;
+        if (num > 0 && num < 1e11) num = num * 1000;
+        d = new Date(num);
+    } else if (typeof dateOrMs === 'string' && /^\d+(\.\d+)?$/.test(dateOrMs.trim())) {
+        let num = Number(dateOrMs);
+        if (num > 0 && num < 1e11) num = num * 1000;
+        d = new Date(num);
+    } else if (dateOrMs instanceof Date) {
+        d = dateOrMs;
+    } else {
+        d = new Date(dateOrMs);
+    }
+    if (!d || isNaN(d.getTime())) return '';
+    let year = d.getFullYear();
+    if (year < 2000) {
+        year = 2026;
+    }
     const pad = (n) => n.toString().padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    return `${year}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 };
 
 export const parseFilenameDate = (filename) => {
     if (!filename) return new Date();
-    const match = filename.match(/(\d{4}-\d{2}-\d{2}[_T]\d{2}[-:]\d{2}[-:]\d{2})/);
-    if (!match) return new Date();
-    const raw = match[1];
-    const parts = raw.split(/[_T]/);
-    return new Date(`${parts[0]}T${parts[1].replace(/-/g, ':')}`);
+    const str = String(filename);
+    const match = str.match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})[_T\s-](\d{2})[-:]?(\d{2})[-:]?(\d{2})/);
+    if (match) {
+        const [, year, month, day, hour, min, sec] = match;
+        const d = new Date(`${year}-${month}-${day}T${hour}:${min}:${sec}`);
+        if (!isNaN(d.getTime())) return d;
+    }
+    const epochMatch = str.match(/(\d{10,13})/);
+    if (epochMatch) {
+        let val = Number(epochMatch[1]);
+        if (val < 1e11) val *= 1000;
+        const d = new Date(val);
+        if (!isNaN(d.getTime())) return d;
+    }
+    return new Date();
 };
 
 export const getFileDateMs = (file) => {
@@ -66,7 +121,10 @@ export const getFileDateMs = (file) => {
     if (parsed && !isNaN(parsed.getTime())) {
         return parsed.getTime();
     }
-    return file.lastModified || Date.now();
+    if (file.lastModified && file.lastModified > 86400000) {
+        return file.lastModified;
+    }
+    return Date.now();
 };
 
 export const formatDuration = (ms) => {

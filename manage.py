@@ -5,6 +5,9 @@ import sys
 
 def main():
     """Run administrative tasks."""
+    from dotenv import load_dotenv
+    load_dotenv()  # Load environment variables from .env before Django settings are read
+
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'geophone_project.settings')
     try:
         from django.core.management import execute_from_command_line

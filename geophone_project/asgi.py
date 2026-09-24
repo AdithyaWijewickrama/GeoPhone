@@ -9,7 +9,11 @@ https://docs.djangoproject.com/en/6.1/howto/deployment/asgi/
 
 import os
 
+from dotenv import load_dotenv
+
 from django.core.asgi import get_asgi_application
+
+load_dotenv()  # Load environment variables from .env before Django settings are read
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'geophone_project.settings')
 

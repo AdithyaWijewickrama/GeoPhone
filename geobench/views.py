@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
-from .ml_model import process_geophone_csv, generate_event_plot, process_geophone_chunk
+from .ml_model import process_geophone_csv, generate_event_plot, generate_event_plot_from_data, process_geophone_chunk
 from .models import Location, FileBatch, AnomalyLabel, KnownEvent, EventLabel, UserProfile
 
 
@@ -257,7 +257,7 @@ def handle_locations(request):
     if request.method == 'GET':
         user_id = request.GET.get('user_id')
         locations = Location.objects.select_related('user').all().order_by('-created_at')
-        if user_id and user_id != 'all':
+        if user_id and user_id != 'all' and request.GET.get('filter_by_user') == 'true':
             locations = locations.filter(user_id=user_id)
 
         data = [
@@ -331,7 +331,7 @@ def handle_locations(request):
 def process_file_api(request):
     if request.method == 'POST' and request.FILES.get('file'):
         file_obj = request.FILES['file']
-        result = process_geophone_csv(file_obj)
+        result = process_geophone_csv(file_obj, filename=file_obj.name)
         if result.get('ok'):
             return JsonResponse(result)
         return JsonResponse({'error': result.get('reason', 'Unknown error')}, status=400)
@@ -446,16 +446,37 @@ def get_labels_api(request):
 @csrf_exempt
 def get_event_plot(request):
     if request.method == 'POST':
-        files = request.FILES.getlist('files')
-        start_ms = request.POST.get('start_time')
-        end_ms = request.POST.get('end_time')
+        start_ms = None
+        end_ms = None
+        files = []
+        times = None
+        volts = None
 
-        result = generate_event_plot(files, start_ms, end_ms)
+        if request.content_type and 'application/json' in request.content_type:
+            try:
+                data = json.loads(request.body)
+                start_ms = data.get('start_time') or data.get('event_start')
+                end_ms = data.get('end_time') or data.get('event_end')
+                times = data.get('times')
+                volts = data.get('volts')
+            except Exception as e:
+                return JsonResponse({'error': f'Invalid JSON: {str(e)}'}, status=400)
+        else:
+            files = request.FILES.getlist('files')
+            start_ms = request.POST.get('start_time') or request.POST.get('event_start')
+            end_ms = request.POST.get('end_time') or request.POST.get('event_end')
+
+        if times is not None and volts is not None and len(times) > 0 and len(volts) > 0:
+            result = generate_event_plot_from_data(times, volts, start_ms, end_ms)
+        elif files:
+            result = generate_event_plot(files, start_ms, end_ms)
+        else:
+            return JsonResponse({'error': 'No waveform data or files provided for plot generation'}, status=400)
 
         if result.get('ok'):
-            return JsonResponse({'image': result['image']})
+            return JsonResponse({'ok': True, 'image': result['image'], 'image_base64': result.get('image_base64', result['image'])})
         return JsonResponse({'error': result.get('reason', 'Plot generation failed')}, status=400)
-    return JsonResponse({'error': 'Invalid request'}, status=400)
+    return JsonResponse({'error': 'Invalid request method. POST expected.'}, status=405)
 
 
 @csrf_exempt
