@@ -2,6 +2,7 @@
 import json
 import os
 import pickle
+from functools import lru_cache
 from datetime import datetime, timezone
 
 import numpy as np
@@ -11,6 +12,7 @@ from sklearn.metrics import precision_recall_fscore_support, accuracy_score
 from sklearn.model_selection import GroupShuffleSplit
 
 from .ml_features import FEATURE_VERSION
+from .models import ClassifierRun
 
 ARTIFACT_DIR = os.path.join(settings.BASE_DIR, 'ml_artifacts')
 MODEL_PATH = os.path.join(ARTIFACT_DIR, 'event_classifier.pkl')
@@ -54,10 +56,12 @@ def train_classifier(records):
         precision, recall, f1, support = precision_recall_fscore_support(y[test_idx], pred, labels=classes, zero_division=0)
         report = {str(c): {'precision': float(p), 'recall': float(r), 'f1': float(f), 'support': int(s)} for c, p, r, f, s in zip(classes, precision, recall, f1, support)}
     os.makedirs(ARTIFACT_DIR, exist_ok=True)
-    with open(MODEL_PATH, 'wb') as artifact:
+    model_path = os.path.join(ARTIFACT_DIR, f"event_classifier_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}.pkl")
+    with open(model_path, 'wb') as artifact:
         pickle.dump({'model': model, 'features': feature_names, 'extractor_version': FEATURE_VERSION}, artifact)
     metadata = {
         'trained_at': datetime.now(timezone.utc).isoformat(), 'row_count': len(rows),
+        'model_file': model_path, 'feature_extractor_version': FEATURE_VERSION,
         'class_counts': {str(c): int(n) for c, n in zip(classes, counts)},
         'held_out_day': holdout_day, 'validation_accuracy': float(accuracy_score(y[test_idx], model.predict(X[test_idx]))) if test_idx.size else None,
         'per_class': report, 'hazard_recall': {name: report.get(name, {}).get('recall') for name in ('natural_rockfall', 'block_removal')},
@@ -68,15 +72,29 @@ def train_classifier(records):
     return metadata
 
 
-def suggest_label(features):
-    if not os.path.exists(MODEL_PATH):
+@lru_cache(maxsize=4)
+def _load_model(model_file):
+    with open(model_file, 'rb') as artifact:
+        return pickle.load(artifact)
+
+
+def get_latest_classifier_run():
+    return ClassifierRun.objects.order_by('-trained_at', '-id').first()
+
+
+def suggest_label(features, classifier_run=None):
+    classifier_run = classifier_run or get_latest_classifier_run()
+    if not classifier_run or not os.path.exists(classifier_run.model_file):
         return None
     try:
-        with open(MODEL_PATH, 'rb') as artifact:
-            bundle = pickle.load(artifact)
+        bundle = _load_model(classifier_run.model_file)
         vector = [[float(features.get(name, 0)) for name in bundle['features']]]
         probabilities = bundle['model'].predict_proba(vector)[0]
         index = int(np.argmax(probabilities))
-        return {'category': str(bundle['model'].classes_[index]), 'confidence': float(probabilities[index])}
-    except (OSError, ValueError, KeyError, pickle.UnpicklingError):
+        return {
+            'category': str(bundle['model'].classes_[index]),
+            'confidence': float(probabilities[index]),
+            'classifier_run_id': classifier_run.id,
+        }
+    except (OSError, ValueError, KeyError, pickle.UnpicklingError, EOFError):
         return None

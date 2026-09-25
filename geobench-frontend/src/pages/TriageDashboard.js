@@ -197,7 +197,12 @@ export default function TriageDashboard({
                 setLabels(prev => ({ ...prev, ...data.existing_labels }));
             }
 
-            const events = mergeEvents(data.blocks, DEFAULT_THRESHOLD);
+            const events = mergeEvents(data.blocks, DEFAULT_THRESHOLD).map(event => ({
+                ...event,
+                suggested_label: event.peakBlock?.suggested_label || null,
+                suggested_confidence: event.peakBlock?.suggested_confidence ?? null,
+                classifier_run_id: event.peakBlock?.classifier_run_id ?? null
+            }));
             return {
                 key: `scanned_${Date.now()}`,
                 name: customName,
@@ -362,6 +367,9 @@ export default function TriageDashboard({
                 location_id: currentLocation ? currentLocation.id : null,
                 save_as_known_event: saveAsKnownEvent,
                 user_id: user ? user.id : null,
+                suggested_label: event.suggested_label || null,
+                suggested_confidence: event.suggested_confidence ?? null,
+                suggested_by_id: event.classifier_run_id ?? null,
                 times: waveform?.times,
                 volts: waveform?.volts
             })

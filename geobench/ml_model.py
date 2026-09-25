@@ -11,6 +11,50 @@ import matplotlib.pyplot as plt
 from scipy import signal
 
 
+def _attach_block_suggestions(times, volts, blocks):
+    """Attach latest-run predictions to detected blocks when a model is available."""
+    if not blocks:
+        return blocks
+    from .ml_classifier import get_latest_classifier_run, suggest_label
+    from .ml_features import extract_event_features
+
+    classifier_run = get_latest_classifier_run()
+    if not classifier_run:
+        return blocks
+    times = np.asarray(times, dtype=float)
+    volts = np.asarray(volts, dtype=float)
+    def annotate_group(group):
+        if not group:
+            return
+        start_idx = max(0, int(group[0]['s']))
+        end_idx = min(len(times), int(group[-1]['e']) + 1)
+        try:
+            features = extract_event_features(times[start_idx:end_idx], volts[start_idx:end_idx])
+            prediction = suggest_label(features, classifier_run)
+        except (ValueError, TypeError):
+            prediction = None
+        if prediction:
+            suggestion = {
+                'suggested_label': prediction['category'],
+                'suggested_confidence': prediction['confidence'],
+                'classifier_run_id': prediction['classifier_run_id'],
+            }
+            for item in group:
+                item.update(suggestion)
+
+    # Match the frontend's default event grouping so blocks in one merged
+    # event carry the same interval-level suggestion; skip background blocks.
+    group = []
+    for block in blocks:
+        if float(block.get('score', 0)) >= 5:
+            group.append(block)
+        else:
+            annotate_group(group)
+            group = []
+    annotate_group(group)
+    return blocks
+
+
 def parse_filename_datetime(filename):
     """Extracts a datetime from a filename pattern (e.g. 2026-07-29_21-58-26.csv or epoch timestamp)."""
     if not filename:
@@ -146,6 +190,8 @@ def process_geophone_csv(file_obj, filename=None):
                 'time': float(times_ms.iloc[i]),
                 'score': float(row['score'])
             })
+
+        _attach_block_suggestions(times_ms.tolist(), df['voltage'].tolist(), blocks)
 
         return {
             'ok': True,
@@ -392,6 +438,8 @@ def process_geophone_chunk(file_objs, filenames):
     for i, row in df_blocks.iterrows():
         blocks.append(
             {'s': max(0, i - win_size), 'e': i, 'time': float(times_ms.iloc[i]), 'score': float(row['score'])})
+
+    _attach_block_suggestions(times_ms.tolist(), master_df['voltage'].tolist(), blocks)
 
     return {
         'ok': True,

@@ -181,13 +181,14 @@ export default function FlaggedEventsTable({
                                 <th>Duration</th>
                                 <th>Score</th>
                                 <th>Label</th>
+                                <th>AI Suggestion</th>
                                 <th>Note</th>
                             </tr>
                         </thead>
                         <tbody>
                             {currentEvents.length === 0 ? (
                                 <tr>
-                                    <td colSpan="7" className="text-center p-4 text-muted">
+                                    <td colSpan="8" className="text-center p-4 text-muted">
                                         {isFilteredByWaveform ? (
                                             <>
                                                 No events in the selected waveform window.{' '}
@@ -260,6 +261,22 @@ export default function FlaggedEventsTable({
                                                         <option key={opt} value={opt}>{opt}</option>
                                                     ))}
                                                 </select>
+                                            </td>
+                                            <td onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+                                                {ev.suggested_label ? (
+                                                    <div className="d-flex align-items-center gap-1 flex-wrap">
+                                                        <span className="small text-info" title={ev.classifier_run_id ? `Classifier run ${ev.classifier_run_id}` : undefined}>
+                                                            {ev.suggested_label}{Number.isFinite(ev.suggested_confidence) ? ` (${(ev.suggested_confidence * 100).toFixed(1)}%)` : ''}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-outline-info btn-sm py-0 px-1"
+                                                            style={{ fontSize: '0.7rem' }}
+                                                            onClick={() => onSaveLabel(chunk.key, chunk.name, ev, ev.suggested_label, saved.note || '')}
+                                                            title="Accept the model suggestion as this event's label"
+                                                        >Accept</button>
+                                                    </div>
+                                                ) : <span className="text-muted">—</span>}
                                             </td>
                                             <td onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
                                                 <input

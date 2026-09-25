@@ -63,6 +63,25 @@ class FileBatch(models.Model):
         return self.filename
 
 
+class ClassifierRun(models.Model):
+    """A trained classifier snapshot, produced by the train_classifier management command."""
+
+    location = models.ForeignKey(Location, on_delete=models.SET_NULL, null=True, blank=True, related_name='classifier_runs')
+    version = models.CharField(max_length=32, unique=True)
+    trained_at = models.DateTimeField(auto_now_add=True)
+    feature_extractor_version = models.CharField(max_length=32)
+    training_row_count = models.PositiveIntegerField()
+    class_counts = models.JSONField()  # e.g. {"natural_rockfall": 6, "block_removal": 9, ...}
+    held_out_batches = models.JSONField(blank=True, null=True)  # FileBatch filenames used as validation
+    metrics = models.JSONField(blank=True, null=True)  # {"precision": {...}, "recall": {...}, "f1": {...}}
+    model_file = models.CharField(max_length=1024)  # path to the pickled model on disk
+    notes = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        """Returns the classifier version and its training date."""
+        return f"ClassifierRun {self.version} ({self.trained_at:%Y-%m-%d})"
+
+
 class AnomalyLabel(models.Model):
     """Stores a label for an anomaly interval belonging to an uploaded file."""
 
@@ -77,6 +96,15 @@ class AnomalyLabel(models.Model):
     label_type = models.CharField(max_length=100)
     note = models.TextField(blank=True, null=True)
     saved_at = models.DateTimeField(auto_now=True)
+
+    # Classifier suggestion shown at the moment this label was saved, kept
+    # alongside the human's final label_type so suggestion-vs-actual
+    # agreement can be measured per ClassifierRun over time.
+    suggested_label = models.CharField(max_length=100, blank=True, null=True)
+    suggested_confidence = models.FloatField(blank=True, null=True)
+    suggested_by = models.ForeignKey(
+        ClassifierRun, on_delete=models.SET_NULL, null=True, blank=True, related_name='suggestions'
+    )
 
     class Meta:
         """Defines uniqueness of anomaly intervals within each file batch."""

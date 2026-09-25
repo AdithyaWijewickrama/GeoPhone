@@ -9,7 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 from .ml_model import process_geophone_csv, generate_event_plot, generate_event_plot_from_data, process_geophone_chunk
 from .ml_features import extract_event_features, FEATURE_VERSION
 from .ml_classifier import suggest_label, METADATA_PATH
-from .models import Location, FileBatch, AnomalyLabel, KnownEvent, EventLabel, UserProfile, EventFeatures
+from .models import Location, FileBatch, AnomalyLabel, KnownEvent, EventLabel, UserProfile, EventFeatures, ClassifierRun
 
 
 def serialize_user(user):
@@ -407,7 +407,10 @@ def save_label(request):
                     'duration': data.get('duration', 0),
                     'peak_score': data.get('peakScore', 0),
                     'label_type': data['label'],
-                    'note': data.get('note', '')
+                    'note': data.get('note', ''),
+                    'suggested_label': data.get('suggested_label') or None,
+                    'suggested_confidence': float(data['suggested_confidence']) if data.get('suggested_confidence') is not None else None,
+                    'suggested_by': ClassifierRun.objects.filter(pk=data.get('suggested_by_id')).first() if data.get('suggested_by_id') else None,
                 }
             )
 
