@@ -155,7 +155,7 @@ export default function ChunkDetail({
      */
     const handleBatchSaveFromModal = async ({ finalLabel, note, saveAsKnown, bounds: savedBounds }) => {
         for (const ev of savedBounds.events) {
-            await onSaveLabel(chunk.key, chunk.name, ev, finalLabel, note, false);
+            await onSaveLabel(chunk.key, chunk.name, ev, finalLabel, note, false, chunk.raw);
         }
 
         if (saveAsKnown) {
@@ -225,6 +225,7 @@ export default function ChunkDetail({
                 bounds={bounds}
                 currentLocation={currentLocation}
                 onSave={handleBatchSaveFromModal}
+                waveform={chunk.raw}
             />
 
             {/* Spectrogram / Zoom Modal */}

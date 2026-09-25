@@ -10,7 +10,8 @@ export default function LabelEventModal({
     onClose,
     bounds,
     currentLocation,
-    onSave
+    onSave,
+    waveform
 }) {
     const [modalLabel, setModalLabel] = useState(LABEL_OPTIONS[1]);
     const [modalCustomLabel, setModalCustomLabel] = useState('');
@@ -18,6 +19,25 @@ export default function LabelEventModal({
     const [modalSaveAsKnown, setModalSaveAsKnown] = useState(false);
     const [modalCollisionWarning, setModalCollisionWarning] = useState(null);
     const [checkingCollision, setCheckingCollision] = useState(false);
+    const [suggestion, setSuggestion] = useState(null);
+    const [checkingSuggestion, setCheckingSuggestion] = useState(false);
+
+    useEffect(() => {
+        if (!show || !bounds || !waveform?.times?.length || !waveform?.volts?.length) return;
+        let active = true;
+        setCheckingSuggestion(true);
+        fetch(`${API_BASE_URL}/api/suggest-label/`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ times: waveform.times, volts: waveform.volts, start_time: bounds.minStart, end_time: bounds.maxEnd })
+        }).then(res => res.json()).then(data => {
+            if (!active) return;
+            const next = data.suggestion;
+            setSuggestion(next || null);
+            if (next && LABEL_OPTIONS.includes(next.category)) setModalLabel(next.category);
+        }).catch(() => { if (active) setSuggestion(null); })
+            .finally(() => { if (active) setCheckingSuggestion(false); });
+        return () => { active = false; };
+    }, [show, bounds?.minStart, bounds?.maxEnd, waveform?.times, waveform?.volts]);
 
     // Check collision when opening label modal
     useEffect(() => {
@@ -114,6 +134,8 @@ export default function LabelEventModal({
                         {/* Label Field */}
                         <div className="mb-3">
                             <label className="form-label text-light small fw-bold">Select Event Classification *</label>
+                            {checkingSuggestion && <div className="text-muted small mb-2">Checking for a model suggestion…</div>}
+                            {suggestion && <div className="alert alert-info py-2 small">Suggested: <strong>{suggestion.category}</strong> ({(suggestion.confidence * 100).toFixed(1)}% confidence). Please review before saving.</div>}
                             <select
                                 className="form-select bg-dark text-light border-secondary mb-2"
                                 value={modalLabel}

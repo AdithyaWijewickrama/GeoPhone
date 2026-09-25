@@ -7,7 +7,9 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
 from .ml_model import process_geophone_csv, generate_event_plot, generate_event_plot_from_data, process_geophone_chunk
-from .models import Location, FileBatch, AnomalyLabel, KnownEvent, EventLabel, UserProfile
+from .ml_features import extract_event_features, FEATURE_VERSION
+from .ml_classifier import suggest_label, METADATA_PATH
+from .models import Location, FileBatch, AnomalyLabel, KnownEvent, EventLabel, UserProfile, EventFeatures
 
 
 def serialize_user(user):
@@ -409,6 +411,17 @@ def save_label(request):
                 }
             )
 
+            # Samples are supplied by triage while still resident in the scanned chunk.
+            if data.get('times') and data.get('volts'):
+                try:
+                    features = extract_event_features(data['times'], data['volts'], data['startTime'], data['endTime'])
+                    EventFeatures.objects.update_or_create(
+                        anomaly_label=label_obj,
+                        defaults={'values': features, 'extractor_version': FEATURE_VERSION},
+                    )
+                except ValueError:
+                    pass
+
             # Check if user requested saving as known event as well
             if data.get('save_as_known_event'):
                 event_name = data.get('label') or 'Labeled Event'
@@ -549,6 +562,35 @@ def process_chunk_api(request):
         return JsonResponse({'error': result.get('reason', 'Unknown error'), 'missing': result.get('missing', [])},
                             status=400)
     return JsonResponse({'error': 'Invalid request'}, status=400)
+
+
+@csrf_exempt
+def suggest_label_api(request):
+    """Suggest a category for an event waveform using the latest trained model."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    try:
+        data = json.loads(request.body)
+        features = extract_event_features(data.get('times', []), data.get('volts', []), data.get('start_time'), data.get('end_time'))
+        suggestion = suggest_label(features)
+        return JsonResponse({'suggestion': suggestion})
+    except (ValueError, TypeError) as exc:
+        return JsonResponse({'error': str(exc), 'suggestion': None}, status=400)
+
+
+@csrf_exempt
+def model_metadata_api(request):
+    """Returns the latest offline model evaluation metadata, if available."""
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    import os
+    if not os.path.exists(METADATA_PATH):
+        return JsonResponse({'trained': False})
+    try:
+        with open(METADATA_PATH, encoding='utf-8') as metadata_file:
+            return JsonResponse({'trained': True, **json.load(metadata_file)})
+    except (OSError, ValueError):
+        return JsonResponse({'trained': False, 'error': 'Training metadata is unavailable'}, status=500)
 
 
 @csrf_exempt

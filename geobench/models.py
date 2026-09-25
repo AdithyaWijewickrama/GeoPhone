@@ -88,6 +88,15 @@ class AnomalyLabel(models.Model):
         return f"{self.file_batch.filename} - {self.label_type}"
 
 
+class EventFeatures(models.Model):
+    """Feature vector extracted from the waveform for a human-labeled interval."""
+
+    anomaly_label = models.OneToOneField(AnomalyLabel, on_delete=models.CASCADE, related_name='features')
+    values = models.JSONField()
+    extractor_version = models.CharField(max_length=32)
+    created_at = models.DateTimeField(auto_now=True)
+
+
 class KnownEvent(models.Model):
     """Represents a named event interval used to contextualize triage data."""
 

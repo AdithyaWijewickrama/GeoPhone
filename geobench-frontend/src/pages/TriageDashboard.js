@@ -338,7 +338,7 @@ export default function TriageDashboard({
     /**
      * Saves or clears an event label and optionally creates a known event.
      */
-    const handleSaveLabel = async (chunkKey, chunkName, event, label, note, saveAsKnownEvent = false) => {
+    const handleSaveLabel = async (chunkKey, chunkName, event, label, note, saveAsKnownEvent = false, waveform = null) => {
         const labelKey = `${chunkName}_${Math.round(event.startTime)}_${Math.round(event.endTime)}`;
 
         setLabels(prev => {
@@ -361,7 +361,9 @@ export default function TriageDashboard({
                 note,
                 location_id: currentLocation ? currentLocation.id : null,
                 save_as_known_event: saveAsKnownEvent,
-                user_id: user ? user.id : null
+                user_id: user ? user.id : null,
+                times: waveform?.times,
+                volts: waveform?.volts
             })
         });
 
