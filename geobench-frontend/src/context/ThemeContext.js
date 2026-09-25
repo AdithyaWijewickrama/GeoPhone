@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 export const THEMES = {
     MODERN_DARK: 'modern-dark',
-    CURRENT: 'current',
+    GEOPHONE: 'geophone-dark',
     MODERN_WHITE: 'modern-white'
 };
 
@@ -16,16 +16,16 @@ export const THEME_OPTIONS = [
         description: 'Sleek, high-contrast dark theme with cyan/blue accents and deep slate canvas.'
     },
     {
-        id: 'current',
-        label: 'Current',
-        shortLabel: 'Current',
-        icon: '🪵',
+        id: 'geophone-dark',
+        label: 'Geophone Dark',
+        shortLabel: 'Geophone Dark',
+        icon: '',
         badge: 'Classic',
         description: 'Original warm earthy dark theme with golden amber accents.'
     },
     {
         id: 'modern-white',
-        label: 'Modern White (Professional)',
+        label: 'Modern White',
         shortLabel: 'Modern White',
         icon: '☀️',
         badge: 'Light',
@@ -34,7 +34,7 @@ export const THEME_OPTIONS = [
 ];
 
 const ThemeContext = createContext({
-    theme: THEMES.CURRENT,
+    theme: THEMES.GEOPHONE,
     setTheme: () => {},
     themes: THEME_OPTIONS
 });
@@ -42,10 +42,10 @@ const ThemeContext = createContext({
 export function ThemeProvider({ children }) {
     const [theme, setTheme] = useState(() => {
         const saved = localStorage.getItem('geophone_theme');
-        if (saved && (saved === 'modern-dark' || saved === 'current' || saved === 'modern-white')) {
+        if (saved && (saved === 'modern-dark' || saved === 'geophone-dark' || saved === 'modern-white')) {
             return saved;
         }
-        return 'current';
+        return 'geophone-dark';
     });
 
     useEffect(() => {

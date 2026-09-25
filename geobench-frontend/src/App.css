@@ -1,11 +1,22 @@
+/* Modern-theme font. Loaded once; only modern-dark/modern-white opt in below.
+   For best performance, move this to a <link rel="preconnect"> + <link rel="stylesheet">
+   in your index.html instead of @import - this works either way. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 /* ==========================================================================
    Global Theme Variables & Definitions
    ========================================================================== */
 
-/* 1. CURRENT (Classic Warm Earthy Dark Theme) */
+/* 1. CURRENT (Classic Warm Earthy Dark Theme)
+   NOTE: ThemeContext.js sets data-theme="current" for this theme, not
+   "geophone-dark". Both selectors are matched here so the explicit block
+   actually applies (previously this only worked by coincidence, via the
+   bare :root fallback carrying identical values). */
 :root,
+[data-theme="geophone-dark"],
 [data-theme="current"] {
-  --geo-theme-name: "current";
+  --geo-theme-name: "geophone-dark";
+  --geo-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --geo-bg-dark: #16120e;
   --geo-bg-card: #1e1812;
   --geo-bg-card-header: rgba(0, 0, 0, 0.25);
@@ -41,6 +52,7 @@
 /* 2. MODERN DARK (Sleek Charcoal/Slate Dark Theme) */
 [data-theme="modern-dark"] {
   --geo-theme-name: "modern-dark";
+  --geo-font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --geo-bg-dark: #090d16;
   --geo-bg-card: #0f172a;
   --geo-bg-card-header: #1e293b;
@@ -76,6 +88,7 @@
 /* 3. MODERN WHITE (Professional Crisp Light Theme) */
 [data-theme="modern-white"] {
   --geo-theme-name: "modern-white";
+  --geo-font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --geo-bg-dark: #f8fafc;
   --geo-bg-card: #ffffff;
   --geo-bg-card-header: #f1f5f9;
@@ -114,7 +127,7 @@
 html, body {
   background-color: var(--geo-bg-dark) !important;
   color: var(--geo-text-main) !important;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--geo-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.2s ease, color 0.2s ease;
@@ -302,6 +315,28 @@ h1, h2, h3, h4, h5, h6, p, label, li, span, div {
 /* ==========================================================================
    Tables
    ========================================================================== */
+
+/* Bridge into Bootstrap 5's own table variables. Bootstrap 5 paints
+   table hover/stripe/active backgrounds with an inset box-shadow driven by
+   --bs-table-*-bg, layered on top of the background-color property - so
+   overriding background-color alone (below) never actually shows through
+   once .table-hover/.table-striped/.table-active are in play. Setting
+   Bootstrap's own variables makes the built-in mechanism use our theme
+   colors instead of fighting it. */
+.table {
+  --bs-table-hover-bg: var(--geo-table-hover);
+  --bs-table-hover-color: var(--geo-text-main);
+  --bs-table-striped-bg: var(--geo-table-stripe);
+  --bs-table-striped-color: var(--geo-text-main);
+  --bs-table-active-bg: var(--geo-table-selected);
+  --bs-table-active-color: var(--geo-text-main);
+}
+
+.table-success {
+  --bs-table-accent-bg: var(--geo-table-selected);
+  --bs-table-color: var(--geo-text-main);
+}
+
 .table {
   color: var(--geo-text-main) !important;
   border-color: var(--geo-border) !important;

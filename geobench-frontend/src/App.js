@@ -4,6 +4,7 @@ import './App.css';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ThemeSelector from './components/ThemeSelector';
+import logo from './logo.svg'
 
 
 
@@ -93,7 +94,7 @@ function AppContent() {
             <nav className="navbar navbar-expand-lg navbar-dark border-bottom border-secondary">
                 <div className="container-fluid">
                     <Link className="navbar-brand text-warning fw-bold d-flex align-items-center gap-2" to={isAuthenticated ? "/triage" : "/"}>
-                        <span>🌐</span>
+                        <img src={logo} alt="" width="32" height="32" className="object-fit-contain" />
                         <span>GeoPhone Platform</span>
                     </Link>
                     <div className="collapse navbar-collapse">

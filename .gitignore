@@ -80,3 +80,7 @@ Desktop.ini
 *.sln
 *.swp
 /geobench-frontend/public/img.png
+
+#drive files
+/.tmp.driveupload/
+/.tmp.drivedownload/
