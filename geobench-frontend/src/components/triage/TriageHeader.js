@@ -5,7 +5,6 @@ export default function TriageHeader({
     user,
     onOpenLocationModal,
     onOpenDefineModal,
-    onOpenExplorerModal,
     onFilesSelected,
     fileInputRef,
     folderInputRef,
@@ -14,6 +13,10 @@ export default function TriageHeader({
     fileCount,
     onClear
 }) {
+    const userDisplayName = user
+        ? (user.display_name || user.name || (user.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : user.username))
+        : '';
+
     return (
         <header className="p-3 bg-dark border-bottom border-secondary d-flex flex-wrap justify-content-between align-items-center gap-3">
             <div className="d-flex align-items-center gap-3">
@@ -46,7 +49,7 @@ export default function TriageHeader({
                         title={`Operator user account #${user.id}`}
                     >
                         <span>👤</span>
-                        <span className="text-info fw-bold">{user.display_name || user.username}</span>
+                        <span className="text-info fw-bold">{userDisplayName}</span>
                         <span className="text-muted small">(#{user.id})</span>
                     </div>
                 )}
@@ -57,12 +60,12 @@ export default function TriageHeader({
                     + Define Event
                 </button>
 
-                {/* Import Files Buttons: Explorer Modal & Native */}
+                {/* Import Files Buttons */}
                 <div className="btn-group btn-group-sm">
                     <button
                         className="btn btn-warning fw-bold"
-                        onClick={() => onOpenExplorerModal ? onOpenExplorerModal() : fileInputRef.current && fileInputRef.current.click()}
-                        title="Open Windows File Explorer Selection Modal"
+                        onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                        title="Import CSV Files"
                     >
                         📁 Import Files
                     </button>

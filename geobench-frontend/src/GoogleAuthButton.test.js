@@ -51,10 +51,10 @@ describe('GoogleAuthButton Component', () => {
         const sampleBtn = screen.getByText('Use Sample');
         fireEvent.click(sampleBtn);
 
-        const emailInput = screen.getByPlaceholderText('alex.seismic@gmail.com');
-        const nameInput = screen.getByPlaceholderText('Alex Seismic');
-        expect(emailInput.value).toBe('alex.geophysicist@gmail.com');
-        expect(nameInput.value).toBe('Dr. Alex Morgan');
+        const emailInput = screen.getByPlaceholderText('demo.user.google@gmail.com');
+        const nameInput = screen.getByPlaceholderText('Demo user google');
+        expect(emailInput.value).toBe('demo.user.google@gmail.com');
+        expect(nameInput.value).toBe('Demo user google');
     });
 
     test('opens Sign-In dev modal on Login page', () => {

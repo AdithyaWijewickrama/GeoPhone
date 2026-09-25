@@ -9,7 +9,9 @@ export default function DefineEventModal({
     locations = [],
     onOpenLocationModal,
     user,
-    onEventCreated
+    onEventCreated,
+    eventToEdit = null,
+    onDeleteEvent = null
 }) {
     const [availableLocations, setAvailableLocations] = useState(locations || []);
     const [defineEventLocationId, setDefineEventLocationId] = useState('');
@@ -17,6 +19,10 @@ export default function DefineEventModal({
     const [defineCollisionWarning, setDefineCollisionWarning] = useState(null);
     const [forceDefineSave, setForceDefineSave] = useState(false);
     const [loadingLocations, setLoadingLocations] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+
+    const isEditMode = Boolean(eventToEdit && eventToEdit.id);
 
     // Sync with locations prop when changed
     useEffect(() => {
@@ -51,14 +57,36 @@ export default function DefineEventModal({
         };
     }, [show]);
 
-    // Set default define event location when location changes
+    // Pre-fill form on open / when eventToEdit changes
     useEffect(() => {
-        if (currentLocation) {
-            setDefineEventLocationId(String(currentLocation.id));
-        } else if (!defineEventLocationId && availableLocations.length > 0) {
-            // Keep default empty or current
+        if (!show) return;
+
+        if (eventToEdit) {
+            const startMs = Number(eventToEdit.start_time || eventToEdit.startTime || 0);
+            const endMs = Number(eventToEdit.end_time || eventToEdit.endTime || (startMs + 10000));
+            const durSec = Math.max(1, Math.round((endMs - startMs) / 1000));
+
+            setNewEvent({
+                name: eventToEdit.name || '',
+                start: startMs ? toDatetimeLocalString(new Date(startMs)) : '',
+                end: endMs ? toDatetimeLocalString(new Date(endMs)) : '',
+                duration: String(durSec),
+                note: eventToEdit.note || ''
+            });
+            setDefineEventLocationId(
+                eventToEdit.location_id ? String(eventToEdit.location_id) : (currentLocation ? String(currentLocation.id) : '')
+            );
+        } else {
+            setNewEvent({ name: '', start: '', end: '', duration: '', note: '' });
+            if (currentLocation) {
+                setDefineEventLocationId(String(currentLocation.id));
+            } else {
+                setDefineEventLocationId('');
+            }
         }
-    }, [currentLocation, availableLocations]);
+        setDefineCollisionWarning(null);
+        setForceDefineSave(false);
+    }, [show, eventToEdit, currentLocation]);
 
     if (!show) return null;
 
@@ -98,7 +126,7 @@ export default function DefineEventModal({
         setNewEvent(prev => ({ ...prev, ...updates }));
     };
 
-    const handleCreateEvent = async (overrideForce = false) => {
+    const handleSaveEvent = async (overrideForce = false) => {
         if (!newEvent.name.trim() || !newEvent.start || !newEvent.end) {
             return alert("Please fill in Event Name, Start Time, and End Time.");
         }
@@ -111,30 +139,42 @@ export default function DefineEventModal({
         }
 
         const locId = defineEventLocationId || (currentLocation ? currentLocation.id : null);
+        setSaving(true);
 
         try {
-            const res = await fetch(`${API_BASE_URL}/api/known-events/`, {
-                method: 'POST',
+            const url = isEditMode
+                ? `${API_BASE_URL}/api/known-events/${eventToEdit.id}/`
+                : `${API_BASE_URL}/api/known-events/`;
+
+            const method = isEditMode ? 'PUT' : 'POST';
+
+            const payload = {
+                id: isEditMode ? eventToEdit.id : undefined,
+                name: newEvent.name.trim(),
+                start_time,
+                end_time,
+                location_id: locId ? parseInt(locId) : null,
+                note: newEvent.note,
+                force: overrideForce || forceDefineSave,
+                user_id: user ? user.id : null
+            };
+
+            const res = await fetch(url, {
+                method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name: newEvent.name.trim(),
-                    start_time,
-                    end_time,
-                    location_id: locId ? parseInt(locId) : null,
-                    note: newEvent.note,
-                    force: overrideForce || forceDefineSave,
-                    user_id: user ? user.id : null
-                })
+                body: JSON.stringify(payload)
             });
             const data = await res.json();
 
             if (data.status === 'collision_warning') {
                 setDefineCollisionWarning(data);
+                setSaving(false);
                 return;
             }
 
             if (!res.ok || data.error) {
-                alert(data.error || "Failed to create event");
+                alert(data.error || (isEditMode ? "Failed to update event" : "Failed to create event"));
+                setSaving(false);
                 return;
             }
 
@@ -142,28 +182,66 @@ export default function DefineEventModal({
                 await onEventCreated();
             }
 
-            onClose();
-            setNewEvent({ name: '', start: '', end: '', duration: '', note: '' });
-            setDefineCollisionWarning(null);
-            setForceDefineSave(false);
+            handleCloseModal();
         } catch (err) {
             console.error(err);
             alert("Error connecting to server.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!eventToEdit || !eventToEdit.id) return;
+        if (!window.confirm(`Are you sure you want to delete known event "${eventToEdit.name}"?`)) {
+            return;
+        }
+
+        setDeleting(true);
+        try {
+            if (onDeleteEvent) {
+                await onDeleteEvent(eventToEdit);
+            } else {
+                const res = await fetch(`${API_BASE_URL}/api/known-events/${eventToEdit.id}/`, {
+                    method: 'DELETE'
+                });
+                if (!res.ok) {
+                    const data = await res.json().catch(() => ({}));
+                    alert(data.error || "Failed to delete event");
+                    setDeleting(false);
+                    return;
+                }
+                if (onEventCreated) {
+                    await onEventCreated();
+                }
+            }
+            handleCloseModal();
+        } catch (err) {
+            console.error("Error deleting event:", err);
+            alert("Error connecting to server.");
+        } finally {
+            setDeleting(false);
         }
     };
 
     const handleCloseModal = () => {
         setDefineCollisionWarning(null);
         setForceDefineSave(false);
+        setNewEvent({ name: '', start: '', end: '', duration: '', note: '' });
         onClose();
     };
 
     return (
         <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 1050 }}>
             <div className="modal-dialog modal-dialog-centered">
-                <div className="modal-content bg-dark border-secondary text-light">
+                <div className="modal-content bg-dark border-secondary text-light shadow-lg">
                     <div className="modal-header border-secondary">
-                        <h5 className="modal-title text-info">📌 Define Custom Known Event</h5>
+                        <div className="d-flex align-items-center gap-2">
+                            <span>{isEditMode ? '✏️' : '📌'}</span>
+                            <h5 className="modal-title text-info mb-0">
+                                {isEditMode ? 'Edit Known Event' : 'Define Custom Known Event'}
+                            </h5>
+                        </div>
                         <button
                             type="button"
                             className="btn-close btn-close-white"
@@ -172,7 +250,9 @@ export default function DefineEventModal({
                     </div>
                     <div className="modal-body">
                         <p className="small text-muted mb-3">
-                            Define a recurring or verified seismic event rule. Files matching this time window will be grouped into known event chunks in List 2.
+                            {isEditMode
+                                ? 'Update properties or time bounds for this registered known event rule.'
+                                : 'Define a recurring or verified seismic event rule. Files matching this time window will be grouped into known event chunks in List 2.'}
                         </p>
 
                         {/* Location Selection for Event */}
@@ -299,12 +379,25 @@ export default function DefineEventModal({
                             </div>
                         )}
 
-                        <button
-                            className="btn btn-info w-100 fw-bold"
-                            onClick={() => handleCreateEvent(forceDefineSave)}
-                        >
-                            Save Known Event Rule
-                        </button>
+                        <div className="d-flex gap-2">
+                            {isEditMode && (
+                                <button
+                                    type="button"
+                                    className="btn btn-outline-danger fw-bold"
+                                    onClick={handleDelete}
+                                    disabled={deleting || saving}
+                                >
+                                    {deleting ? 'Deleting...' : '🗑️ Delete'}
+                                </button>
+                            )}
+                            <button
+                                className="btn btn-info flex-grow-1 fw-bold"
+                                onClick={() => handleSaveEvent(forceDefineSave)}
+                                disabled={saving || deleting}
+                            >
+                                {saving ? 'Saving...' : (isEditMode ? 'Save Changes' : 'Save Known Event Rule')}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

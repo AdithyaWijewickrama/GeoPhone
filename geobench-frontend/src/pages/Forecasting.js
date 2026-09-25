@@ -11,7 +11,7 @@ export default function Forecasting() {
                     <h2 className="text-warning mb-0">ML Forecasting & Analytics</h2>
                     {user && (
                         <small className="text-muted">
-                            Active Analyst: <span className="text-info">@{user.username}</span> (ID: #{user.id})
+                            Active Analyst: <span className="text-info">{user.display_name || user.name || user.username}</span> (ID: #{user.id})
                         </small>
                     )}
                 </div>

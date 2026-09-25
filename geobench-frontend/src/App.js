@@ -144,11 +144,11 @@ function AppContent() {
                         {/* User Profile / Auth Actions */}
                         {user ? (
                             <div className="d-flex align-items-center gap-2">
-                                <div className="d-flex align-items-center gap-2 bg-black bg-opacity-50 px-2 py-1 rounded border border-secondary" title={`Logged in as ${user.username} (ID: ${user.id})`}>
+                                <div className="d-flex align-items-center gap-2 bg-black bg-opacity-50 px-2 py-1 rounded border border-secondary" title={`Logged in as ${user.display_name || user.name || user.username} (ID: ${user.id})`}>
                                     {user.avatar_url ? (
                                         <img
                                             src={user.avatar_url}
-                                            alt={user.username}
+                                            alt={user.display_name || user.username}
                                             className="rounded-circle"
                                             style={{ width: '24px', height: '24px', objectFit: 'cover' }}
                                         />
@@ -157,12 +157,12 @@ function AppContent() {
                                             className="rounded-circle bg-warning text-dark fw-bold d-flex align-items-center justify-content-center small"
                                             style={{ width: '24px', height: '24px', fontSize: '11px' }}
                                         >
-                                            {(user.first_name ? user.first_name[0] : (user.username ? user.username[0] : 'U')).toUpperCase()}
+                                            {((user.display_name || user.first_name || user.username || 'U')[0]).toUpperCase()}
                                         </div>
                                     )}
                                     <div className="d-flex flex-column" style={{ lineHeight: '1.1' }}>
                                         <span className="text-light small fw-bold">
-                                            {user.display_name || user.username}
+                                            {user.display_name || user.name || (user.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : user.username)}
                                         </span>
                                         <span className="text-warning small" style={{ fontSize: '10px' }}>
                                             ID: #{user.id}

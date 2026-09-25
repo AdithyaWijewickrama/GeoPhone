@@ -92,13 +92,13 @@ class GeoBenchApiTests(TestCase):
         self.assertEqual(res_email_login.status_code, 200)
 
     def test_auth_google(self):
-        # Create a mock Google JWT payload
+        # Create a mock Google JWT payload with name "Demo user google"
         google_payload_data = {
             'sub': '123456789012345678901',
-            'email': 'googleuser@gmail.com',
-            'name': 'Google User',
-            'given_name': 'Google',
-            'family_name': 'User',
+            'email': 'demo.user.google@gmail.com',
+            'name': 'Demo user google',
+            'given_name': 'Demo',
+            'family_name': 'user google',
             'picture': 'https://example.com/photo.jpg'
         }
         encoded_payload = base64.urlsafe_b64encode(json.dumps(google_payload_data).encode()).decode().rstrip('=')
@@ -112,18 +112,21 @@ class GeoBenchApiTests(TestCase):
         self.assertEqual(res.status_code, 200)
         data = res.json()
         self.assertEqual(data['status'], 'success')
-        self.assertEqual(data['user']['email'], 'googleuser@gmail.com')
+        self.assertEqual(data['user']['email'], 'demo.user.google@gmail.com')
+        self.assertEqual(data['user']['display_name'], 'Demo user google')
+        self.assertEqual(data['user']['first_name'], 'Demo')
+        self.assertEqual(data['user']['last_name'], 'user google')
         self.assertTrue(data['user']['is_google'])
         self.assertEqual(data['user']['avatar_url'], 'https://example.com/photo.jpg')
 
-        # Check existing user login with Google
+        # Check existing user login with Google updates names properly
         res_again = self.client.post(
             reverse('auth_google'),
             data=json.dumps({'credential': mock_jwt}),
             content_type='application/json'
         )
         self.assertEqual(res_again.status_code, 200)
-        self.assertEqual(res_again.json()['user']['email'], 'googleuser@gmail.com')
+        self.assertEqual(res_again.json()['user']['display_name'], 'Demo user google')
 
     def test_location_crud_with_user(self):
         # List locations (all available locations returned regardless of user query)
@@ -226,10 +229,75 @@ class GeoBenchApiTests(TestCase):
         res = self.client.get(reverse('known_events') + f'?location_id={self.loc1.id}')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.json()), 2)
+        event_1_id = res.json()[0]['id']
 
         res = self.client.get(reverse('known_events') + f'?location_id={self.loc2.id}')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.json()), 0)
+
+        # Test GET single known event
+        res = self.client.get(reverse('known_event_detail', kwargs={'event_id': event_1_id}))
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['id'], event_1_id)
+
+        # Test Edit / PUT known event with collision warning
+        edit_payload = {
+            'name': 'Updated Blast Event',
+            'start_time': 100050.0,
+            'end_time': 104950.0,
+            'location_id': self.loc1.id,
+            'note': 'Blast timing updated'
+        }
+        res_warn = self.client.put(
+            reverse('known_event_detail', kwargs={'event_id': event_1_id}),
+            data=json.dumps(edit_payload),
+            content_type='application/json'
+        )
+        self.assertEqual(res_warn.status_code, 200)
+        self.assertEqual(res_warn.json().get('status'), 'collision_warning')
+
+        # Edit / PUT with force=True
+        edit_payload['force'] = True
+        res = self.client.put(
+            reverse('known_event_detail', kwargs={'event_id': event_1_id}),
+            data=json.dumps(edit_payload),
+            content_type='application/json'
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['name'], 'Updated Blast Event')
+        self.assertEqual(res.json()['note'], 'Blast timing updated')
+
+        # Test Edit via POST to handle_known_events
+        res = self.client.post(
+            reverse('known_events'),
+            data=json.dumps({
+                'id': event_1_id,
+                'name': 'Renamed Blast Event',
+                'start_time': 100050.0,
+                'end_time': 104950.0,
+                'location_id': self.loc1.id,
+                'note': 'Renamed',
+                'force': True
+            }),
+            content_type='application/json'
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['name'], 'Renamed Blast Event')
+
+        # Test DELETE known event detail
+        res = self.client.delete(reverse('known_event_detail', kwargs={'event_id': event_1_id}))
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['status'], 'deleted')
+        self.assertFalse(KnownEvent.objects.filter(id=event_1_id).exists())
+
+        # Test DELETE via query param on handle_known_events
+        events_left = self.client.get(reverse('known_events')).json()
+        self.assertEqual(len(events_left), 1)
+        other_event_id = events_left[0]['id']
+        res = self.client.delete(reverse('known_events') + f'?id={other_event_id}')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['status'], 'deleted')
+        self.assertFalse(KnownEvent.objects.filter(id=other_event_id).exists())
 
     def test_save_label_and_get_labels(self):
         payload = {

@@ -1,0 +1,373 @@
+/* ==========================================================================
+   GeoPhone — "Modern White" theme (Professional Light)
+   --------------------------------------------------------------------------
+   Standalone theme layer keyed off the [data-theme="modern-white"] attribute
+   that ThemeContext sets on <html> and <body>.
+
+   Load order contract: this file MUST be imported AFTER App.css so its rules
+   win the cascade (selectors here use html[data-theme=...] which also gives
+   them strictly higher specificity than App.css equivalents).
+
+   Palette: airy near-white canvas, pure-white cards, slate text, vivid blue
+   accent (Stripe / Notion style). Interactions are subtle — small lifts and
+   soft shadows instead of glows.
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+/* --------------------------------------------------------------------------
+   1. Design tokens
+   -------------------------------------------------------------------------- */
+html[data-theme="modern-white"] {
+  --geo-theme-name: "modern-white";
+
+  /* Canvas & surfaces */
+  --geo-bg-dark: #f6f8fb;
+  --geo-bg-card: #ffffff;
+  --geo-bg-card-header: #f8fafc;
+  --geo-bg-input: #ffffff;
+  --geo-bg-input-focus: #ffffff;
+  --geo-navbar-bg: rgba(255, 255, 255, 0.85);
+  --geo-modal-bg: #ffffff;
+  --geo-modal-backdrop: rgba(15, 23, 42, 0.45);
+  --geo-dropdown-bg: #ffffff;
+  --geo-dropdown-hover: #f1f5f9;
+
+  /* Lines */
+  --geo-border: #e2e8f0;
+  --geo-border-light: #eef2f7;
+  --geo-border-strong: #cbd5e1;
+  --geo-navbar-border: #e2e8f0;
+
+  /* Text */
+  --geo-text-main: #1e293b;
+  --geo-text-heading: #0f172a;
+  --geo-text-muted: #64748b;
+
+  /* Accents */
+  --geo-accent: #2563eb;
+  --geo-accent-strong: #1d4ed8;
+  --geo-accent-contrast: #ffffff;
+  --geo-accent-blue: #2563eb;
+  --geo-accent-2: #0891b2;
+  --geo-accent-orange: #ea580c;
+  --geo-accent-yellow: #2563eb;
+  --geo-brand-color: #1d4ed8;
+  --geo-danger: #dc2626;
+  --geo-success: #059669;
+  --geo-warning: #d97706;
+
+  /* Data views */
+  --geo-table-hover: #f1f5f9;
+  --geo-table-selected: rgba(37, 99, 235, 0.09);
+  --geo-table-stripe: #f8fafc;
+  --geo-badge-loc-bg: #eef4ff;
+  --geo-badge-loc-text: #1d4ed8;
+
+  /* Elevation */
+  --geo-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 28px -14px rgba(15, 23, 42, 0.18);
+  --geo-shadow-sm: 0 2px 10px rgba(15, 23, 42, 0.08);
+  --geo-glow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+  --geo-gradient: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+
+  /* Chrome */
+  --geo-scrollbar-track: #eef2f7;
+  --geo-scrollbar-thumb: #cbd5e1;
+  --geo-btn-theme-bg: #eff6ff;
+  --geo-btn-theme-border: #2563eb;
+  --geo-btn-theme-text: #1d4ed8;
+
+  /* Modern extras (not used by App.css) */
+  --geo-font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --geo-font-display: 'Space Grotesk', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --geo-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --geo-radius-sm: 8px;
+  --geo-radius-md: 12px;
+  --geo-radius-lg: 16px;
+  --geo-speed: 180ms;
+  --geo-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* --------------------------------------------------------------------------
+   2. Typography
+   -------------------------------------------------------------------------- */
+html[data-theme="modern-white"] body {
+  font-family: var(--geo-font-body);
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'ss01';
+  letter-spacing: 0.005em;
+}
+
+html[data-theme="modern-white"] h1,
+html[data-theme="modern-white"] h2,
+html[data-theme="modern-white"] h3,
+html[data-theme="modern-white"] h4,
+html[data-theme="modern-white"] h5,
+html[data-theme="modern-white"] h6,
+html[data-theme="modern-white"] .navbar-brand {
+  font-family: var(--geo-font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--geo-text-heading);
+}
+
+html[data-theme="modern-white"] p {
+  line-height: 1.6;
+}
+
+html[data-theme="modern-white"] code,
+html[data-theme="modern-white"] kbd,
+html[data-theme="modern-white"] pre,
+html[data-theme="modern-white"] samp {
+  font-family: var(--geo-font-mono);
+  font-size: 0.9em;
+}
+
+/* Gradient brand wordmark */
+html[data-theme="modern-white"] .navbar-brand {
+  background: var(--geo-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* --------------------------------------------------------------------------
+   3. Base surfaces
+   -------------------------------------------------------------------------- */
+html[data-theme="modern-white"] body,
+html[data-theme="modern-white"] .app-container {
+  background-color: var(--geo-bg-dark);
+  color: var(--geo-text-main);
+}
+
+html[data-theme="modern-white"] .card {
+  border-radius: var(--geo-radius-md);
+  box-shadow: var(--geo-shadow) !important;
+}
+
+html[data-theme="modern-white"] .card:hover {
+  border-color: var(--geo-border-strong) !important;
+}
+
+html[data-theme="modern-white"] .card-header {
+  border-radius: var(--geo-radius-md) var(--geo-radius-md) 0 0;
+  letter-spacing: 0.01em;
+}
+
+html[data-theme="modern-white"] .modal-content {
+  border-radius: var(--geo-radius-lg);
+}
+
+html[data-theme="modern-white"] .theme-dropdown-menu,
+html[data-theme="modern-white"] .dropdown-menu {
+  border-radius: var(--geo-radius-lg);
+}
+
+/* --------------------------------------------------------------------------
+   4. Navbar (glass + sticky)
+   -------------------------------------------------------------------------- */
+html[data-theme="modern-white"] .navbar {
+  background-color: var(--geo-navbar-bg) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(1.4);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06) !important;
+  position: sticky;
+  top: 0;
+  z-index: 1020;
+}
+
+/* Sliding gradient underline for nav links */
+html[data-theme="modern-white"] .nav-link {
+  position: relative;
+}
+
+html[data-theme="modern-white"] .nav-link::after {
+  content: "";
+  position: absolute;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: 2px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--geo-gradient);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--geo-speed) var(--geo-ease);
+}
+
+html[data-theme="modern-white"] .nav-link:hover::after,
+html[data-theme="modern-white"] .nav-link.active::after {
+  transform: scaleX(1);
+}
+
+/* --------------------------------------------------------------------------
+   5. Buttons
+   -------------------------------------------------------------------------- */
+html[data-theme="modern-white"] .btn {
+  border-radius: var(--geo-radius-md);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: all var(--geo-speed) var(--geo-ease);
+}
+
+html[data-theme="modern-white"] .btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--geo-shadow-sm);
+}
+
+html[data-theme="modern-white"] .btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* Primary CTA (btn-warning is the app's primary action class) */
+html[data-theme="modern-white"] .btn-warning {
+  background-color: var(--geo-accent) !important;
+  border-color: transparent !important;
+  color: var(--geo-accent-contrast) !important;
+}
+
+html[data-theme="modern-white"] .btn-warning:hover {
+  background-color: var(--geo-accent-strong) !important;
+  filter: none;
+}
+
+/* Secondary outline CTA */
+html[data-theme="modern-white"] .btn-outline-warning {
+  border-color: var(--geo-accent) !important;
+  color: var(--geo-accent) !important;
+  background-color: transparent !important;
+}
+
+html[data-theme="modern-white"] .btn-outline-warning:hover {
+  background-color: var(--geo-accent) !important;
+  border-color: var(--geo-accent) !important;
+  color: var(--geo-accent-contrast) !important;
+}
+
+/* Danger stays semantic */
+html[data-theme="modern-white"] .btn-outline-danger {
+  border-color: rgba(220, 38, 38, 0.5) !important;
+  color: #dc2626 !important;
+}
+
+html[data-theme="modern-white"] .btn-outline-danger:hover {
+  background-color: rgba(220, 38, 38, 0.08) !important;
+  border-color: #dc2626 !important;
+  color: #b91c1c !important;
+}
+
+/* Theme selector trigger: glow instead of flat fill */
+html[data-theme="modern-white"] .btn-outline-theme:hover,
+html[data-theme="modern-white"] .btn-outline-theme:focus {
+  background-color: var(--geo-btn-theme-bg) !important;
+  color: var(--geo-btn-theme-text) !important;
+  box-shadow: var(--geo-glow);
+  transform: none;
+}
+
+/* --------------------------------------------------------------------------
+   6. Forms
+   -------------------------------------------------------------------------- */
+html[data-theme="modern-white"] .form-control,
+html[data-theme="modern-white"] .form-select {
+  border-radius: var(--geo-radius-sm);
+  transition: border-color var(--geo-speed) var(--geo-ease),
+    box-shadow var(--geo-speed) var(--geo-ease),
+    background-color var(--geo-speed) var(--geo-ease);
+}
+
+html[data-theme="modern-white"] .form-control:focus,
+html[data-theme="modern-white"] .form-select:focus {
+  border-color: var(--geo-accent) !important;
+  box-shadow: var(--geo-glow) !important;
+  background-color: #ffffff !important;
+}
+
+html[data-theme="modern-white"] .form-label {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+html[data-theme="modern-white"] input[type="range"] {
+  accent-color: var(--geo-accent);
+}
+
+/* --------------------------------------------------------------------------
+   7. Accent remaps (App.css hardcodes these per theme)
+   -------------------------------------------------------------------------- */
+html[data-theme="modern-white"] .text-warning {
+  color: var(--geo-accent) !important;
+}
+
+html[data-theme="modern-white"] .text-info {
+  color: var(--geo-accent-2) !important;
+}
+
+html[data-theme="modern-white"] .table thead th {
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+}
+
+/* --------------------------------------------------------------------------
+   8. Interactions — selectable lists, focus, selection, scrollbar
+   -------------------------------------------------------------------------- */
+html[data-theme="modern-white"] .selectable-item,
+html[data-theme="modern-white"] .selectable-row,
+html[data-theme="modern-white"] .list-group-item,
+html[data-theme="modern-white"] .theme-option-btn {
+  transition: background-color var(--geo-speed) var(--geo-ease),
+    border-color var(--geo-speed) var(--geo-ease),
+    transform var(--geo-speed) var(--geo-ease);
+}
+
+html[data-theme="modern-white"] .selectable-item:hover {
+  transform: translateY(-1px);
+  border-color: var(--geo-border-strong) !important;
+}
+
+html[data-theme="modern-white"] .theme-option-btn:hover {
+  transform: translateX(2px);
+}
+
+/* Keyboard focus ring (inputs already glow via box-shadow) */
+html[data-theme="modern-white"] :focus-visible:not(.form-control):not(.form-select) {
+  outline: 2px solid var(--geo-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Text selection */
+html[data-theme="modern-white"] ::selection {
+  background: rgba(37, 99, 235, 0.2);
+  color: inherit;
+}
+
+/* Slimmer, rounded scrollbar */
+html[data-theme="modern-white"] ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+html[data-theme="modern-white"] ::-webkit-scrollbar-thumb {
+  background: var(--geo-scrollbar-thumb);
+  border-radius: 8px;
+  border: 2px solid var(--geo-scrollbar-track);
+  background-clip: padding-box;
+}
+
+html[data-theme="modern-white"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--geo-border-strong);
+  background-clip: padding-box;
+}
+
+/* --------------------------------------------------------------------------
+   9. Accessibility — respect reduced motion
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="modern-white"] *,
+  html[data-theme="modern-white"] *::before,
+  html[data-theme="modern-white"] *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

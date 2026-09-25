@@ -139,8 +139,8 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
 
     const handleDevSubmit = async (e) => {
         e.preventDefault();
-        const email = devEmail.trim() || 'demo.user@gmail.com';
-        const name = devName.trim() || 'Demo Google User';
+        const email = devEmail.trim() || 'demo.user.google@gmail.com';
+        const name = devName.trim() || 'Demo user google';
         const google_id = `google_${Math.abs(email.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0))}`;
         const nameParts = name.split(' ');
         const given_name = nameParts[0] || '';
@@ -152,6 +152,7 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
             const user = await loginWithGoogle({
                 email,
                 name,
+                display_name: name,
                 google_id,
                 picture: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}`,
                 given_name,
@@ -231,7 +232,7 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
                                         <input
                                             type="email"
                                             className="form-control form-control-sm bg-dark text-light border-secondary"
-                                            placeholder="alex.seismic@gmail.com"
+                                            placeholder="demo.user.google@gmail.com"
                                             value={devEmail}
                                             onChange={(e) => setDevEmail(e.target.value)}
                                             required
@@ -243,7 +244,7 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
                                         <input
                                             type="text"
                                             className="form-control form-control-sm bg-dark text-light border-secondary"
-                                            placeholder="Alex Seismic"
+                                            placeholder="Demo user google"
                                             value={devName}
                                             onChange={(e) => setDevName(e.target.value)}
                                         />
@@ -253,8 +254,8 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
                                             type="button"
                                             className="btn btn-outline-secondary btn-sm flex-fill"
                                             onClick={() => {
-                                                setDevEmail('alex.geophysicist@gmail.com');
-                                                setDevName('Dr. Alex Morgan');
+                                                setDevEmail('demo.user.google@gmail.com');
+                                                setDevName('Demo user google');
                                             }}
                                         >
                                             Use Sample
