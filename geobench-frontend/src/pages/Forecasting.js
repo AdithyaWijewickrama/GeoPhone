@@ -1,6 +1,9 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 
+/**
+ * Renders the forecasting page interface.
+ */
 export default function Forecasting() {
     const { user } = useAuth();
 

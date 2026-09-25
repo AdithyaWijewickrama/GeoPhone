@@ -4,6 +4,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import { AuthContext } from './context/AuthContext';
 
+/** Renders UI inside a router and mocked authentication context. */
 function renderWithAuth(ui, authValue = {}, initialEntries = ['/protected']) {
     const defaultAuth = {
         user: null,

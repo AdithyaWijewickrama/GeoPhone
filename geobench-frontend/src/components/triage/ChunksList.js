@@ -1,6 +1,9 @@
 import React from 'react';
 import { formatDuration } from '../../utils';
 
+/**
+ * Displays processed chunks and their selection state.
+ */
 export default function ChunksList({
     chunks,
     selectedChunkKeys,
@@ -17,6 +20,9 @@ export default function ChunksList({
     setDragChunkDeselect
 }) {
     // Drag selection for List 2 (Chunks)
+    /**
+     * Starts or toggles chunk selection, including shift-selection behavior.
+     */
     const handleChunkMouseDown = (chunkKey, idx, e) => {
         if (e.button !== 0) return;
         setIsDraggingChunks(true);
@@ -41,6 +47,9 @@ export default function ChunksList({
         });
     };
 
+    /**
+     * Extends an active drag selection across chunks.
+     */
     const handleChunkMouseEnter = (idx) => {
         if (!isDraggingChunks || dragChunkStart === null) return;
         const [low, high] = [Math.min(dragChunkStart, idx), Math.max(dragChunkStart, idx)];

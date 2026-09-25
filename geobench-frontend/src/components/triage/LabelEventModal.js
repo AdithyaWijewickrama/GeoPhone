@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { formatDateTime } from '../../utils';
 import { LABEL_OPTIONS, API_BASE_URL } from './constants';
 
+/**
+ * Lets the user choose or enter a label and note for selected events and displays collision information.
+ */
 export default function LabelEventModal({
     show,
     onClose,
@@ -57,6 +60,9 @@ export default function LabelEventModal({
 
     if (!show || !bounds) return null;
 
+    /**
+     * Validates the chosen label and passes the final label/note to the parent callback.
+     */
     const handleSave = () => {
         const finalLabel = modalCustomLabel.trim() || modalLabel;
         if (!finalLabel) {

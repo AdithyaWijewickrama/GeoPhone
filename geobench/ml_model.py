@@ -95,6 +95,7 @@ def parse_timestamp_series(series, filename=None):
 
 
 def calculate_robust_z(series):
+    """Calculates a nonnegative robust deviation score using the median and median absolute deviation."""
     median = series.median()
     mad = (series - median).abs().median()
     mad = mad if mad > 1e-9 else 1e-6
@@ -102,6 +103,7 @@ def calculate_robust_z(series):
 
 
 def process_geophone_csv(file_obj, filename=None):
+    """Reads one CSV's timestamp and voltage columns, normalizes timestamps, calculates rolling anomaly features/scores, and returns samples, detected blocks, and timing statistics. Errors are returned as `{ok: False, reason: ...}`."""
     try:
         fname = filename or getattr(file_obj, 'name', None)
         df = pd.read_csv(file_obj, usecols=['timestamp', 'voltage'])
@@ -293,6 +295,7 @@ def generate_event_plot_from_data(times_input, volts_input, event_start_ms=None,
 
 
 def generate_event_plot(file_objs, event_start_ms, event_end_ms):
+    """Reads and combines readable CSV files, sorts their samples, then delegates plotting to `generate_event_plot_from_data()`."""
     try:
         # 1. Parse and stitch multiple files into a single continuous dataframe
         dataframes = []

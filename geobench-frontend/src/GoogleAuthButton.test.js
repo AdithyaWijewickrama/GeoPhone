@@ -8,6 +8,7 @@ import Signup from './pages/Signup';
 import Login from './pages/Login';
 import App from './App';
 
+/** Renders UI inside the providers required by authentication components. */
 const renderWithProviders = (ui) => {
     return render(
         <ThemeProvider>

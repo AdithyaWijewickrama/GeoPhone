@@ -21,6 +21,9 @@ import GoogleAuthButton from './components/GoogleAuthButton';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL || 'http://127.0.0.1:8000';
 
+/**
+ * Owns the application shell, navigation, route layout, selected location, and authentication-aware UI.
+ */
 function AppContent() {
     const { user, logout, isAuthenticated } = useAuth();
     const navigate = useNavigate();
@@ -55,6 +58,7 @@ function AppContent() {
             .catch(err => console.error("Error loading locations:", err));
     }, [user]);
 
+    /** Updates the current location and persists the selection. */
     const handleSelectLocation = (loc) => {
         setCurrentLocation(loc);
         if (loc) {
@@ -64,15 +68,18 @@ function AppContent() {
         }
     };
 
+    /** Adds/selects a newly created location and advances the location flow. */
     const handleLocationCreated = (newLoc) => {
         setLocations(prev => [newLoc, ...prev.filter(l => l.id !== newLoc.id)]);
     };
 
+    /** Logs the user out and navigates to the public entry page. */
     const handleLogout = async () => {
         await logout();
         navigate('/login');
     };
 
+    /** Completes navbar Google sign-in navigation, returning to the saved route or triage page. */
     const handleNavbarGoogleSuccess = () => {
         // GoogleAuthButton (via AuthContext) already stored the user;
         // Redirect from auth pages to main dashboard
@@ -82,6 +89,7 @@ function AppContent() {
         }
     };
 
+    /** Logs a navbar Google sign-in error. */
     const handleNavbarGoogleError = (err) => {
         console.error('Navbar Google sign-in failed:', err);
     };
@@ -247,6 +255,7 @@ function AppContent() {
     );
 }
 
+/** Wraps the application in its routing, authentication, theme, and Google identity providers. */
 function App() {
     return (
         <ThemeProvider>

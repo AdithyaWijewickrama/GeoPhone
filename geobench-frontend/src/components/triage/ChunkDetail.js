@@ -7,6 +7,9 @@ import FlaggedEventsTable from './FlaggedEventsTable';
 import LabelEventModal from './LabelEventModal';
 import SpectrogramModal from './SpectrogramModal';
 
+/**
+ * Displays analysis for a selected chunk, including its waveform and detected events.
+ */
 export default function ChunkDetail({
     chunk,
     labels = {},
@@ -64,6 +67,9 @@ export default function ChunkDetail({
     }, [allChunkEvents, waveformSelection]);
 
     // Handle visible range change from WaveformChart
+    /**
+     * Updates the selected/zoomed waveform interval.
+     */
     const handleWaveformSelectionChange = useCallback((sel) => {
         setWaveformSelection(sel);
     }, []);
@@ -78,6 +84,9 @@ export default function ChunkDetail({
     }
 
     // Calculate fixed date & time for selected events
+    /**
+     * Returns the combined time bounds and event list for selected table events.
+     */
     const getSelectedEventsBounds = () => {
         if (!selectedTableEvents.size) return null;
         const selectedList = Array.from(selectedTableEvents).map(i => currentEvents[i]).filter(Boolean);
@@ -104,6 +113,9 @@ export default function ChunkDetail({
     const bounds = getSelectedEventsBounds();
 
     // View spectrogram / Matplotlib zoom plot
+    /**
+     * Requests an event plot from the backend and displays the result or error.
+     */
     const handleViewPlot = async (target) => {
         const startMs = target?.startTime ?? target?.start_time ?? target?.event_start ?? chunk?.startTime;
         const endMs = target?.endTime ?? target?.end_time ?? target?.event_end ?? chunk?.endTime;
@@ -138,6 +150,9 @@ export default function ChunkDetail({
         }
     };
 
+    /**
+     * Applies a label/note to selected events and optionally saves the interval as a known event.
+     */
     const handleBatchSaveFromModal = async ({ finalLabel, note, saveAsKnown, bounds: savedBounds }) => {
         for (const ev of savedBounds.events) {
             await onSaveLabel(chunk.key, chunk.name, ev, finalLabel, note, false);

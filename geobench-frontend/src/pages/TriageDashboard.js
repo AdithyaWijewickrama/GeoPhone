@@ -12,6 +12,9 @@ import KnownEventsList from '../components/triage/KnownEventsList';
 import DefineEventModal from '../components/triage/DefineEventModal';
 import ChunkDetail from '../components/triage/ChunkDetail';
 
+/**
+ * Coordinates raw file selection, chunk scanning, event labeling, known events, and triage display state.
+ */
 export default function TriageDashboard({
     rawFiles = [],
     setRawFiles,
@@ -69,6 +72,9 @@ export default function TriageDashboard({
     }, []);
 
     // Fetch known events from database when location changes
+    /**
+     * Loads known events, filtered to the active location where applicable.
+     */
     const fetchKnownEvents = useCallback(async () => {
         setLoadingEvents(true);
         try {
@@ -92,6 +98,9 @@ export default function TriageDashboard({
     }, [fetchKnownEvents]);
 
     // Handle importing files
+    /**
+     * Filters selected files to CSV, sorts them by inferred timestamp, and initializes raw-file state.
+     */
     const handleFilesSelected = (e) => {
         const files = Array.from(e.target.files).filter(f => /\.csv$/i.test(f.name));
         if (!files.length) return;
@@ -110,16 +119,25 @@ export default function TriageDashboard({
         fetchKnownEvents();
     };
 
+    /**
+     * Opens the known-event form for creation or editing.
+     */
     const handleOpenDefineModal = (ev = null) => {
         setEventToEdit(ev);
         setShowDefineModal(true);
     };
 
+    /**
+     * Closes and resets the known-event form.
+     */
     const handleCloseDefineModal = () => {
         setShowDefineModal(false);
         setEventToEdit(null);
     };
 
+    /**
+     * Deletes a known event and refreshes related state.
+     */
     const handleDeleteKnownEvent = async (ev) => {
         if (!ev || !ev.id) return;
         if (!window.confirm(`Are you sure you want to delete known event "${ev.name}"?`)) return;
@@ -143,6 +161,9 @@ export default function TriageDashboard({
     };
 
     // Scan a batch of files as a single continuous time dataset
+    /**
+     * Uploads selected files for chunk analysis and maps returned data/labels into dashboard state.
+     */
     const scanFilesAsChunk = async (filesToScan, customName) => {
         if (!filesToScan || !filesToScan.length) return null;
 
@@ -202,6 +223,9 @@ export default function TriageDashboard({
     };
 
     // Scan All Files
+    /**
+     * Scans the complete loaded raw-file set as one chunk.
+     */
     const runFullScan = async () => {
         if (!rawFiles || !rawFiles.length) return;
         setScanning(true);
@@ -215,6 +239,9 @@ export default function TriageDashboard({
     };
 
     // Selection info for List 1
+    /**
+     * Summarizes currently selected files, including count, time range, and duration.
+     */
     const getRawSelectionInfo = () => {
         if (!selectedRawIndices.size) return null;
         const selectedFiles = Array.from(selectedRawIndices).map(i => rawFiles[i]).filter(Boolean);
@@ -239,6 +266,9 @@ export default function TriageDashboard({
     const rawSelectionInfo = getRawSelectionInfo();
 
     // Analyze selection from List 1
+    /**
+     * Scans only the currently selected raw files.
+     */
     const handleAnalyzeRawSelection = async () => {
         if (!rawSelectionInfo) return;
         setAnalyzingSelection(true);
@@ -255,6 +285,9 @@ export default function TriageDashboard({
 
     // When a Known Event is clicked in List 2:
     // Selects the day, hour, and minute in List 1, highlights matching files, and analyzes them
+    /**
+     * Selects files around a known event's time interval and scans them.
+     */
     const handleSelectKnownEvent = async (event) => {
         if (!event) return;
         setSelectedKnownEventId(event.id);
@@ -302,6 +335,9 @@ export default function TriageDashboard({
     };
 
     // Save label callback
+    /**
+     * Saves or clears an event label and optionally creates a known event.
+     */
     const handleSaveLabel = async (chunkKey, chunkName, event, label, note, saveAsKnownEvent = false) => {
         const labelKey = `${chunkName}_${Math.round(event.startTime)}_${Math.round(event.endTime)}`;
 
@@ -334,12 +370,18 @@ export default function TriageDashboard({
         }
     };
 
+    /**
+     * Clears loaded/scanned chunk and selection state.
+     */
     const handleClearAll = () => {
         setRawFiles([]);
         setSelectedRawIndices(new Set());
         setActiveChunkData(null);
     };
 
+    /**
+     * Refreshes known events after creation or editing.
+     */
     const handleEventCreated = async () => {
         await fetchKnownEvents();
     };

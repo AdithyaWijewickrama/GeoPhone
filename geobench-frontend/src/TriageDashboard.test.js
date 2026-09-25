@@ -18,6 +18,7 @@ import KnownEventsList from './components/triage/KnownEventsList';
 import SpectrogramModal from './components/triage/SpectrogramModal';
 import { formatDateTime, toDatetimeLocalString, parseFilenameDate, getFileDateMs } from './utils';
 
+/** Renders dashboard UI inside the router, authentication, and theme providers. */
 const renderWithProviders = (ui) => {
     return render(
         <ThemeProvider>

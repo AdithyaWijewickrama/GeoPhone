@@ -1,3 +1,4 @@
+/** Filters scored blocks by threshold and combines adjacent qualifying blocks into event intervals with peak scores. */
 export const mergeEvents = (blocks, threshold) => {
     let events = [];
     let cur = null;
@@ -29,6 +30,7 @@ export const mergeEvents = (blocks, threshold) => {
     return events;
 };
 
+/** Formats a time value as a clock time, interpreting large numeric values as epoch milliseconds. */
 export const formatTime = (ms) => {
     if (ms === null || ms === undefined || ms === '') return '';
     let num = typeof ms === 'number' ? ms : (typeof ms === 'string' && /^\d+(\.\d+)?$/.test(ms.trim()) ? Number(ms) : NaN);
@@ -44,10 +46,12 @@ export const formatTime = (ms) => {
         d = new Date(ms);
     }
     if (isNaN(d.getTime())) return '';
+    /** Zero-pads a clock component to the requested width. */
     const pad = (x, n = 2) => String(x).padStart(n, '0');
     return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
 };
 
+/** Formats a value as a date and time, applying the fallback for implausibly early years. */
 export const formatDateTime = (ms) => {
     if (!ms && ms !== 0) return '';
     let num = typeof ms === 'number' ? ms : (typeof ms === 'string' && /^\d+(\.\d+)?$/.test(ms.trim()) ? Number(ms) : NaN);
@@ -67,10 +71,12 @@ export const formatDateTime = (ms) => {
     if (year < 2000) {
         year = 2026;
     }
+    /** Zero-pads a date/time component to the requested width. */
     const pad = (x, n = 2) => String(x).padStart(n, '0');
     return `${year}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 };
 
+/** Converts a date or timestamp into the local datetime-local input format. */
 export const toDatetimeLocalString = (dateOrMs) => {
     if (!dateOrMs && dateOrMs !== 0) return '';
     let d;
@@ -92,10 +98,12 @@ export const toDatetimeLocalString = (dateOrMs) => {
     if (year < 2000) {
         year = 2026;
     }
+    /** Zero-pads a date/time component to two digits. */
     const pad = (n) => n.toString().padStart(2, '0');
     return `${year}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 };
 
+/** Parses a date/time or epoch timestamp embedded in a filename, returning a Date or the current date as fallback. */
 export const parseFilenameDate = (filename) => {
     if (!filename) return new Date();
     const str = String(filename);
@@ -115,6 +123,7 @@ export const parseFilenameDate = (filename) => {
     return new Date();
 };
 
+/** Gets a file timestamp from its name, falling back to lastModified or the current time. */
 export const getFileDateMs = (file) => {
     if (!file) return Date.now();
     const parsed = parseFilenameDate(file.name);
@@ -127,6 +136,7 @@ export const getFileDateMs = (file) => {
     return Date.now();
 };
 
+/** Formats a duration in milliseconds as milliseconds, seconds, or minutes and seconds. */
 export const formatDuration = (ms) => {
     if (ms < 1000) {
         return `${Math.round(ms)}ms`; // e.g., 450ms

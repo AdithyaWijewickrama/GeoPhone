@@ -1,8 +1,14 @@
 import React, { useState } from 'react';
 
+/**
+ * Renders the in-app usage documentation.
+ */
 export default function Documentation() {
     const [expanded, setExpanded] = useState({});
 
+    /**
+     * Expands or collapses the selected documentation section.
+     */
     const toggleSection = (section) => {
         setExpanded(prev => ({ ...prev, [section]: !prev[section] }));
     };

@@ -3,6 +3,9 @@ import Chart from 'chart.js/auto';
 import { useTheme } from '../../context/ThemeContext';
 import { formatDateTime } from '../../utils';
 
+/**
+ * Renders the waveform chart, event markers, zoom controls, and drag-selection behavior.
+ */
 export default function WaveformChart({
     chunk,
     threshold,
@@ -53,10 +56,16 @@ export default function WaveformChart({
     }, [activeStart, activeEnd, activeDuration, totalDuration, startTime, onSelectionChange]);
 
     // Zoom action helpers
+    /**
+     * Restores the chart's full time range.
+     */
     const handleResetZoom = useCallback(() => {
         setViewRange({ start: 0, end: totalDuration });
     }, [totalDuration]);
 
+    /**
+     * Narrows the visible time range around its midpoint.
+     */
     const handleZoomIn = () => {
         const center = (activeStart + activeEnd) / 2;
         const halfSpan = (activeDuration / 2) * 0.65;
@@ -66,6 +75,9 @@ export default function WaveformChart({
         });
     };
 
+    /**
+     * Widens the visible time range around its midpoint.
+     */
     const handleZoomOut = () => {
         const center = (activeStart + activeEnd) / 2;
         const halfSpan = (activeDuration / 2) * 1.5;
@@ -75,6 +87,9 @@ export default function WaveformChart({
         });
     };
 
+    /**
+     * Sets a preset visible time span around the chart midpoint.
+     */
     const handleSelectPreset = (seconds) => {
         const span = Math.min(totalDuration, seconds);
         const center = (activeStart + activeEnd) / 2;
@@ -90,6 +105,9 @@ export default function WaveformChart({
         setViewRange({ start: s, end: e });
     };
 
+    /**
+     * Shifts the visible range by a fraction of its current duration.
+     */
     const handlePan = (fraction) => {
         const shift = activeDuration * fraction;
         let s = activeStart + shift;
@@ -105,6 +123,9 @@ export default function WaveformChart({
     };
 
     // Canvas Mouse / Drag selection for interactive time frame zoom
+    /**
+     * Starts waveform drag selection.
+     */
     const handleMouseDown = (e) => {
         if (e.button !== 0 || !chartRef.current) return;
         const rect = canvasRef.current.getBoundingClientRect();
@@ -114,6 +135,9 @@ export default function WaveformChart({
         setSelectionBox(null);
     };
 
+    /**
+     * Updates the active drag-selection endpoint.
+     */
     const handleMouseMove = (e) => {
         if (!isSelecting || !dragStartRef.current || !canvasRef.current) return;
         const rect = canvasRef.current.getBoundingClientRect();
@@ -125,6 +149,9 @@ export default function WaveformChart({
         setSelectionBox({ left, width });
     };
 
+    /**
+     * Converts a sufficiently large chart drag into a selected time range.
+     */
     const handleMouseUp = (e) => {
         if (!isSelecting || !dragStartRef.current || !chartRef.current) {
             setIsSelecting(false);
@@ -314,6 +341,9 @@ export default function WaveformChart({
         return () => chartRef.current?.destroy();
     }, [chunk, threshold, theme, activeStart, activeEnd, activeDuration, startTime, totalDuration]);
 
+    /**
+     * Invokes the supplied plot-view callback for the relevant event interval.
+     */
     const handleTriggerViewPlot = () => {
         if (!onViewPlot) return;
         const startMs = startTime + activeStart * 1000;

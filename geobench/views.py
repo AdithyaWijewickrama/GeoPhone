@@ -11,6 +11,7 @@ from .models import Location, FileBatch, AnomalyLabel, KnownEvent, EventLabel, U
 
 
 def serialize_user(user):
+    """Builds the user object returned to the frontend, including profile, display-name, and Google account details where available."""
     if not user:
         return None
     avatar_url = None
@@ -36,6 +37,7 @@ def serialize_user(user):
 
 
 def decode_jwt_payload(token_str):
+    """Decodes the payload portion of a JWT for reading claims; it does not validate the token signature."""
     try:
         parts = token_str.split('.')
         if len(parts) >= 2:
@@ -52,6 +54,7 @@ def decode_jwt_payload(token_str):
 
 
 def get_request_user(request, data=None):
+    """Resolves the current Django session user or a user identified by request data/token information."""
     if request.user and request.user.is_authenticated:
         return request.user
 
@@ -73,6 +76,7 @@ def get_request_user(request, data=None):
 
 @csrf_exempt
 def auth_signup(request):
+    """Handles account registration, validates input, creates the Django user, and returns an authentication response."""
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
     try:
@@ -119,6 +123,7 @@ def auth_signup(request):
 
 @csrf_exempt
 def auth_login(request):
+    """Authenticates credentials, establishes a Django session, and returns user details or an error."""
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
     try:
@@ -153,12 +158,14 @@ def auth_login(request):
 
 @csrf_exempt
 def auth_logout(request):
+    """Ends the current Django session and returns a logout status."""
     logout(request)
     return JsonResponse({'status': 'success', 'message': 'Logged out successfully'})
 
 
 @csrf_exempt
 def auth_me(request):
+    """Reports whether the request has an authenticated user and returns the user's serialized details."""
     if request.user and request.user.is_authenticated:
         return JsonResponse({
             'authenticated': True,
@@ -172,6 +179,7 @@ def auth_me(request):
 
 @csrf_exempt
 def auth_google(request):
+    """Accepts Google identity information, finds or creates the matching local account/profile, and establishes a session."""
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
     try:
@@ -267,6 +275,7 @@ def auth_google(request):
 
 @csrf_exempt
 def handle_locations(request):
+    """Lists locations for GET requests and creates or updates a location for POST requests."""
     if request.method == 'GET':
         user_id = request.GET.get('user_id')
         locations = Location.objects.select_related('user').all().order_by('-created_at')
@@ -342,6 +351,7 @@ def handle_locations(request):
 
 @csrf_exempt
 def process_file_api(request):
+    """Accepts one uploaded CSV and returns the result of `process_geophone_csv()`."""
     if request.method == 'POST' and request.FILES.get('file'):
         file_obj = request.FILES['file']
         result = process_geophone_csv(file_obj, filename=file_obj.name)
@@ -353,6 +363,7 @@ def process_file_api(request):
 
 @csrf_exempt
 def save_label(request):
+    """Creates, updates, or clears an anomaly label; can also save the labeled interval as a known event."""
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -424,6 +435,7 @@ def save_label(request):
 
 @csrf_exempt
 def get_labels_api(request):
+    """Returns saved anomaly labels, optionally filtered by location and user."""
     if request.method == 'GET':
         location_id = request.GET.get('location_id')
         user_id = request.GET.get('user_id')
@@ -458,6 +470,7 @@ def get_labels_api(request):
 
 @csrf_exempt
 def get_event_plot(request):
+    """Accepts raw waveform arrays or uploaded files and returns a generated event plot."""
     if request.method == 'POST':
         start_ms = None
         end_ms = None
@@ -494,6 +507,7 @@ def get_event_plot(request):
 
 @csrf_exempt
 def process_chunk_api(request):
+    """Registers uploaded file batches, processes the files as one chunk, and includes any existing labels in the response."""
     if request.method == 'POST':
         files = request.FILES.getlist('files')
         filenames = [f.name for f in files]
@@ -539,6 +553,7 @@ def process_chunk_api(request):
 
 @csrf_exempt
 def handle_known_events(request):
+    """Lists, creates, updates, or deletes known events according to the HTTP method and request action."""
     if request.method == 'GET':
         location_id = request.GET.get('location_id')
         user_id = request.GET.get('user_id')
@@ -622,6 +637,7 @@ def handle_known_events(request):
 
 
 def _create_known_event(request, data):
+    """Validates and creates a known event, returning an overlap warning unless the request forces creation."""
     name = (data.get('name') or '').strip()
     if not name:
         return JsonResponse({'error': 'Event name is required'}, status=400)
@@ -679,6 +695,7 @@ def _create_known_event(request, data):
 
 
 def _update_known_event(request, event_id, data):
+    """Updates a known event, checking for overlaps with other events unless forced."""
     event = KnownEvent.objects.filter(id=event_id).first()
     if not event:
         return JsonResponse({'error': 'Event not found'}, status=404)
@@ -742,6 +759,7 @@ def _update_known_event(request, event_id, data):
 
 @csrf_exempt
 def handle_known_event_detail(request, event_id):
+    """Reads, updates, or deletes one known event addressed by ID."""
     event = KnownEvent.objects.filter(id=event_id).first()
     if not event:
         return JsonResponse({'error': 'Event not found'}, status=404)
@@ -780,6 +798,7 @@ def handle_known_event_detail(request, event_id):
 
 @csrf_exempt
 def check_event_collision(request):
+    """Finds known events whose time intervals overlap a supplied interval, optionally filtering by location or excluding an event ID."""
     try:
         if request.method == 'POST':
             data = json.loads(request.body)

@@ -7,7 +7,10 @@ from .models import Location, KnownEvent, FileBatch, AnomalyLabel, UserProfile
 
 
 class GeoBenchApiTests(TestCase):
+    """Integration tests for GeoBench authentication, location, event, and labeling APIs."""
+
     def setUp(self):
+        """Creates the shared authenticated test client and initial test data."""
         self.client = Client()
         self.user = User.objects.create_user(
             username="testuser",
@@ -31,6 +34,7 @@ class GeoBenchApiTests(TestCase):
         )
 
     def test_auth_signup_and_login(self):
+        """Checks account signup and credential login behavior."""
         # Test Signup
         signup_payload = {
             'username': 'newuser',
@@ -92,6 +96,7 @@ class GeoBenchApiTests(TestCase):
         self.assertEqual(res_email_login.status_code, 200)
 
     def test_auth_google(self):
+        """Checks Google authentication/account handling."""
         # Create a mock Google JWT payload with name "Demo user google"
         google_payload_data = {
             'sub': '123456789012345678901',
@@ -129,6 +134,7 @@ class GeoBenchApiTests(TestCase):
         self.assertEqual(res_again.json()['user']['display_name'], 'Demo user google')
 
     def test_location_crud_with_user(self):
+        """Checks location creation and retrieval for a user."""
         # List locations (all available locations returned regardless of user query)
         res = self.client.get(reverse('locations'))
         self.assertEqual(res.status_code, 200)
@@ -172,6 +178,7 @@ class GeoBenchApiTests(TestCase):
         self.assertTrue(Location.objects.filter(name='Site Gamma', user=self.user).exists())
 
     def test_known_events_and_collision(self):
+        """Checks known-event operations and overlap detection."""
         # Create known event with user
         payload = {
             'name': 'Controlled Blast',
@@ -300,6 +307,7 @@ class GeoBenchApiTests(TestCase):
         self.assertFalse(KnownEvent.objects.filter(id=other_event_id).exists())
 
     def test_save_label_and_get_labels(self):
+        """Checks saving and retrieving anomaly labels."""
         payload = {
             'file': 'geophone_2026-09-24_10-00-00.csv',
             'startTime': 1727172000000.0,
@@ -343,6 +351,7 @@ class GeoBenchApiTests(TestCase):
         self.assertEqual(labels[0]['user_name'], self.user.username)
 
     def test_timestamp_processing_year_2026(self):
+        """Checks timestamp parsing behavior for the year 2026."""
         from django.core.files.uploadedfile import SimpleUploadedFile
         from .ml_model import process_geophone_csv, process_geophone_chunk, generate_event_plot
         import pandas as pd

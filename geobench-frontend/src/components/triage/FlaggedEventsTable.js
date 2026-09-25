@@ -2,6 +2,9 @@ import React from 'react';
 import { formatDateTime, formatDuration } from '../../utils';
 import { LABEL_OPTIONS } from './constants';
 
+/**
+ * Displays detected events and their labels, with table selection and plot actions.
+ */
 export default function FlaggedEventsTable({
     currentEvents = [],
     chunk,
@@ -23,6 +26,9 @@ export default function FlaggedEventsTable({
     onResetWaveformFilter
 }) {
     // Table selection drag handlers
+    /**
+     * Starts/toggles event selection and supports shift-selection.
+     */
     const handleTableMouseDown = (idx, e) => {
         if (e.button !== 0) return;
         if (setIsDraggingTable) setIsDraggingTable(true);
@@ -45,6 +51,9 @@ export default function FlaggedEventsTable({
         });
     };
 
+    /**
+     * Extends an active drag selection across event rows.
+     */
     const handleTableMouseEnter = (idx) => {
         if (!isDraggingTable || dragTableStart === null || dragTableStart === undefined) return;
         const [low, high] = [Math.min(dragTableStart, idx), Math.max(dragTableStart, idx)];
@@ -61,6 +70,9 @@ export default function FlaggedEventsTable({
         });
     };
 
+    /**
+     * Selects all displayed events or clears the current selection.
+     */
     const handleSelectAll = () => {
         if (selectedTableEvents.size > 0) {
             setSelectedTableEvents(new Set());
@@ -69,6 +81,9 @@ export default function FlaggedEventsTable({
         }
     };
 
+    /**
+     * Requests a plot covering the selected events, or the full event range when none are selected.
+     */
     const handleViewPlotSelected = () => {
         if (!onViewPlot) return;
         if (selectedTableEvents.size > 0) {

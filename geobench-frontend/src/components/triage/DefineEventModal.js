@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { formatDateTime, toDatetimeLocalString } from '../../utils';
 import { API_BASE_URL } from './constants';
 
+/**
+ * Provides a form to create or edit a known event, including location and collision handling.
+ */
 export default function DefineEventModal({
     show,
     onClose,
@@ -90,6 +93,9 @@ export default function DefineEventModal({
 
     if (!show) return null;
 
+    /**
+     * Updates the event start time and synchronizes its end or duration.
+     */
     const handleStartChange = (e) => {
         const newStart = e.target.value;
         let updates = { start: newStart };
@@ -104,6 +110,9 @@ export default function DefineEventModal({
         setNewEvent(prev => ({ ...prev, ...updates }));
     };
 
+    /**
+     * Updates the end time and recalculates duration.
+     */
     const handleEndChange = (e) => {
         const newEnd = e.target.value;
         let updates = { end: newEnd };
@@ -115,6 +124,9 @@ export default function DefineEventModal({
         setNewEvent(prev => ({ ...prev, ...updates }));
     };
 
+    /**
+     * Updates duration and derives the end time from the start.
+     */
     const handleDurationChange = (e) => {
         const newDur = e.target.value;
         let updates = { duration: newDur };
@@ -126,6 +138,9 @@ export default function DefineEventModal({
         setNewEvent(prev => ({ ...prev, ...updates }));
     };
 
+    /**
+     * Validates and submits a new or edited known event; can retry after a collision warning.
+     */
     const handleSaveEvent = async (overrideForce = false) => {
         if (!newEvent.name.trim() || !newEvent.start || !newEvent.end) {
             return alert("Please fill in Event Name, Start Time, and End Time.");
@@ -191,6 +206,9 @@ export default function DefineEventModal({
         }
     };
 
+    /**
+     * Confirms and deletes the event currently being edited.
+     */
     const handleDelete = async () => {
         if (!eventToEdit || !eventToEdit.id) return;
         if (!window.confirm(`Are you sure you want to delete known event "${eventToEdit.name}"?`)) {
@@ -224,6 +242,9 @@ export default function DefineEventModal({
         }
     };
 
+    /**
+     * Closes the modal and resets its related state.
+     */
     const handleCloseModal = () => {
         setDefineCollisionWarning(null);
         setForceDefineSave(false);

@@ -1,6 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { formatDateTime, formatDuration, getFileDateMs } from '../../utils';
 
+/**
+ * Filters and displays known events with their coverage over the loaded files.
+ */
 export default function KnownEventsList({
     knownEvents = [],
     selectedKnownEventId,
@@ -28,6 +31,9 @@ export default function KnownEventsList({
     }, [knownEvents, searchQuery]);
 
     // Check raw file coverage for an event
+    /**
+     * Counts files whose timestamps fall within a known event's time range, with the component's one-minute margin.
+     */
     const getCoverageInfo = (ev) => {
         const startMs = ev.start_time || ev.startTime || 0;
         const endMs = ev.end_time || ev.endTime || (startMs + 10000);

@@ -1,5 +1,8 @@
 import React from 'react';
 
+/**
+ * Renders the triage page heading and its supplied controls/status.
+ */
 export default function TriageHeader({
     currentLocation,
     user,
