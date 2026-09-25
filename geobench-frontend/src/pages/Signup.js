@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import GoogleAuthButton from '../components/GoogleAuthButton';
 
 export default function Signup() {
     const navigate = useNavigate();
@@ -66,15 +65,6 @@ export default function Signup() {
         }
     };
 
-    const handleGoogleSuccess = () => {
-        navigate(from, { replace: true });
-    };
-
-    const handleGoogleError = (err) => {
-        const errorMsg = typeof err === 'string' ? err : (err?.message || 'Google sign-up failed');
-        setError(errorMsg);
-    };
-
     return (
         <div className="d-flex justify-content-center align-items-center py-5">
             <div className="card bg-dark border-secondary p-4 shadow-lg text-light" style={{ width: '450px', maxWidth: '100%' }}>
@@ -89,21 +79,6 @@ export default function Signup() {
                         {error}
                     </div>
                 )}
-
-                {/* Google Sign-Up */}
-                <div className="mb-3">
-                    <GoogleAuthButton
-                        text="Sign up with Google"
-                        onSuccess={handleGoogleSuccess}
-                        onError={handleGoogleError}
-                    />
-                </div>
-
-                <div className="d-flex align-items-center my-3">
-                    <hr className="flex-grow-1 border-secondary m-0" />
-                    <span className="px-3 text-muted small text-uppercase">or register with email</span>
-                    <hr className="flex-grow-1 border-secondary m-0" />
-                </div>
 
                 <form onSubmit={handleSignup}>
                     <div className="mb-3">

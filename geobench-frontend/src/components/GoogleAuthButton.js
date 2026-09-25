@@ -1,6 +1,12 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 
+// The "type in any email" modal below is a DEMO/DEV convenience only.
+// It must never be reachable in production - it performs no verification
+// that the person entering the email actually owns it, so treating it as
+// a real login path would be an authentication bypass.
+const DEV_FALLBACK_ENABLED = process.env.NODE_ENV !== 'production';
+
 export default function GoogleAuthButton({ text = 'Continue with Google', onSuccess, onError, compact = false }) {
     const { loginWithGoogle } = useAuth();
     const [loading, setLoading] = useState(false);
@@ -29,6 +35,16 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
         }
     }, [loginWithGoogle, onSuccess, onError]);
 
+    // Keep a ref to the latest handler so the init effect below doesn't need
+    // handleGoogleResponse as a dependency - otherwise, whenever a parent
+    // passes fresh inline onSuccess/onError props, the effect re-runs and
+    // calls renderButton() again, stacking duplicate Google buttons into
+    // the same container.
+    const handleGoogleResponseRef = useRef(handleGoogleResponse);
+    useEffect(() => {
+        handleGoogleResponseRef.current = handleGoogleResponse;
+    }, [handleGoogleResponse]);
+
     useEffect(() => {
         // Initialize the standard Google Identity Services button if ref is rendered and client ID exists
         if (compact || !googleClientId) return;
@@ -41,8 +57,12 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
                 try {
                     window.google.accounts.id.initialize({
                         client_id: googleClientId,
-                        callback: handleGoogleResponse
+                        callback: (response) => handleGoogleResponseRef.current(response)
                     });
+
+                    // Clear any previously rendered button before rendering again,
+                    // in case this effect runs more than once for the same node.
+                    googleButtonRef.current.innerHTML = '';
 
                     window.google.accounts.id.renderButton(googleButtonRef.current, {
                         theme: 'filled_black',
@@ -73,7 +93,18 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
             isMounted = false;
             if (intervalId) clearInterval(intervalId);
         };
-    }, [googleClientId, isSignUp, isContinue, compact, handleGoogleResponse]);
+    }, [googleClientId, isSignUp, isContinue, compact]);
+
+    const openDevFallback = (errorMsg = null) => {
+        if (!DEV_FALLBACK_ENABLED) {
+            // In production there is no safe fallback: surface a real error
+            // instead of silently offering an unverified login path.
+            if (onError) onError(errorMsg || 'Google sign-in is unavailable right now. Please try again.');
+            return;
+        }
+        setModalError(errorMsg);
+        setShowDevModal(true);
+    };
 
     const handleCustomGoogleClick = async () => {
         // Use Google's native OAuth2 Token Client if available and client ID is present
@@ -89,7 +120,13 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
                                 const infoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
                                     headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
                                 });
+                                if (!infoRes.ok) {
+                                    throw new Error(`Failed to fetch Google profile (${infoRes.status})`);
+                                }
                                 const info = await infoRes.json();
+                                if (!info.email) {
+                                    throw new Error('Google did not return an email address');
+                                }
 
                                 const user = await loginWithGoogle({
                                     email: info.email,
@@ -102,17 +139,20 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
                                 if (onSuccess) onSuccess(user);
                             } catch (e) {
                                 const errText = typeof e === 'string' ? e : (e?.message || 'Failed to fetch Google profile');
-                                if (onError) onError(errText);
-                                setShowDevModal(true);
+                                openDevFallback(errText);
                             } finally {
                                 setLoading(false);
                             }
                         }
                     },
                     error_callback: (err) => {
+                        // The user simply closing the popup isn't a failure worth
+                        // surfacing as an error or falling back for.
+                        if (err?.type === 'popup_closed' || err?.type === 'popup_closed_by_user') {
+                            return;
+                        }
                         const errorMsg = typeof err === 'string' ? err : (err?.message || 'Google authentication failed');
-                        if (onError) onError(errorMsg);
-                        setShowDevModal(true);
+                        openDevFallback(errorMsg);
                     }
                 });
                 tokenClient.requestAccessToken();
@@ -132,13 +172,15 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
             }
         }
 
-        // Development / Demonstration fallback modal when Google Client ID or GIS is not loaded
-        setModalError(null);
-        setShowDevModal(true);
+        // Development / Demonstration fallback modal when Google Client ID or GIS is not loaded.
+        // Gated by DEV_FALLBACK_ENABLED - see openDevFallback().
+        openDevFallback();
     };
 
     const handleDevSubmit = async (e) => {
         e.preventDefault();
+        if (!DEV_FALLBACK_ENABLED) return; // extra guard, belt-and-braces
+
         const email = devEmail.trim() || 'demo.user.google@gmail.com';
         const name = devName.trim() || 'Demo user google';
         const google_id = `google_${Math.abs(email.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0))}`;
@@ -206,14 +248,14 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
                 </button>
             )}
 
-            {/* Quick Google Account Input for Demo/Dev */}
-            {showDevModal && (
+            {/* Quick Google Account Input for Demo/Dev - only ever rendered when DEV_FALLBACK_ENABLED */}
+            {DEV_FALLBACK_ENABLED && showDevModal && (
                 <div className="modal d-block text-start" style={{ backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1070 }} tabIndex="-1">
                     <div className="modal-dialog modal-dialog-centered modal-sm">
                         <div className="modal-content bg-dark border-secondary text-light shadow-lg">
                             <div className="modal-header border-secondary py-2">
                                 <h6 className="modal-title d-flex align-items-center gap-2 text-warning mb-0">
-                                    <span>{isSignUp ? 'Google Account Sign-Up' : 'Google Account Sign-In'}</span>
+                                    <span>{isSignUp ? 'Google Account Sign-Up' : 'Google Account Sign-In'} (dev mode)</span>
                                 </h6>
                                 <button type="button" className="btn-close btn-close-white" onClick={() => setShowDevModal(false)} aria-label="Close"></button>
                             </div>
@@ -225,7 +267,7 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
                                         </div>
                                     )}
                                     <p className="small text-muted mb-3">
-                                        Enter your Google account details to authenticate via Google Auth:
+                                        Dev-only stand-in for Google Auth. Not available in production builds.
                                     </p>
                                     <div className="mb-2">
                                         <label className="form-label small text-muted">Google Email</label>

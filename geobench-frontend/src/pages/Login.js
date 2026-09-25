@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import GoogleAuthButton from '../components/GoogleAuthButton';
+import logo from '../logo.svg'
 
 export default function Login() {
     const navigate = useNavigate();
@@ -28,20 +28,11 @@ export default function Login() {
         }
     };
 
-    const handleGoogleSuccess = () => {
-        navigate(from, { replace: true });
-    };
-
-    const handleGoogleError = (err) => {
-        const errorMsg = typeof err === 'string' ? err : (err?.message || 'Google sign-in failed');
-        setError(errorMsg);
-    };
-
     return (
         <div className="d-flex justify-content-center align-items-center py-5">
             <div className="card bg-dark border-secondary p-4 shadow-lg text-light" style={{ width: '420px', maxWidth: '100%' }}>
                 <div className="text-center mb-4">
-                    <span className="fs-1">🌐</span>
+                    <img src={logo} alt="" width="32" height="32" className="object-fit-contain" />
                     <h3 className="text-warning fw-bold mt-2 mb-1">GeoPhone Access</h3>
                     <p className="text-muted small mb-0">Sign in to ML Workbench & Seismic Analysis</p>
                 </div>
@@ -51,21 +42,6 @@ export default function Login() {
                         {error}
                     </div>
                 )}
-
-                {/* Google Sign-In */}
-                <div className="mb-3">
-                    <GoogleAuthButton
-                        text="Sign in with Google"
-                        onSuccess={handleGoogleSuccess}
-                        onError={handleGoogleError}
-                    />
-                </div>
-
-                <div className="d-flex align-items-center my-3">
-                    <hr className="flex-grow-1 border-secondary m-0" />
-                    <span className="px-3 text-muted small text-uppercase">or username</span>
-                    <hr className="flex-grow-1 border-secondary m-0" />
-                </div>
 
                 <form onSubmit={handleLogin}>
                     <div className="mb-3">
