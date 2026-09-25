@@ -2,6 +2,7 @@ import io
 import re
 import base64
 from datetime import datetime
+
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -20,8 +21,8 @@ def parse_filename_datetime(filename):
         try:
             year, month, day, hour, minute, second = map(int, m.groups())
             return pd.Timestamp(year=year, month=month, day=day, hour=hour, minute=minute, second=second)
-        except Exception:
-            pass
+        except Exception as e:
+            print(e)
     # check for epoch timestamp in filename (10 or 13 digits)
     epoch_m = re.search(r'(\d{10,13})', str(filename))
     if epoch_m:
@@ -29,13 +30,13 @@ def parse_filename_datetime(filename):
             val = int(epoch_m.group(1))
             unit = 'ms' if val >= 1e11 else 's'
             return pd.to_datetime(val, unit=unit)
-        except Exception:
-            pass
+        except Exception as e:
+            print(e)
     return None
 
 
 def parse_timestamp_series(series, filename=None):
-    """Parses a pandas Series of timestamps into valid datetime64[ns], avoiding 1970 fallback when year is 2026."""
+    """Parses a pandas Series of timestamps into valid datetime64[ns]"""
     if pd.api.types.is_datetime64_any_dtype(series):
         return series
 
