@@ -5,6 +5,7 @@ import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import TriageDashboard from './pages/TriageDashboard';
 import TriageHeader from './components/triage/TriageHeader';
+import { classifyKnn } from './pages/Forecasting';
 import LocationModal from './components/LocationModal';
 import LabeledData from './pages/LabeledData';
 import Login from './pages/Login';
@@ -904,5 +905,30 @@ describe('Timestamp Parsing & Formatting (2026 Dates)', () => {
 
         const localStr = toDatetimeLocalString(epochMs2026);
         expect(localStr).toMatch(/^2026-/);
+    });
+});
+
+describe('Forecasting KNN classifier', () => {
+    test('predicts a label from the majority class among normalized nearest neighbors', () => {
+        const result = classifyKnn([
+            { label: 'Footstep', duration: 1, peakScore: 4 },
+            { label: 'Footstep', duration: 2, peakScore: 5 },
+            { label: 'Vehicle', duration: 9, peakScore: 10 }
+        ], 1.5, 4.5, 3);
+
+        expect(result.label).toBe('Footstep');
+        expect(result.k).toBe(3);
+        expect(result.confidence).toBeCloseTo(2 / 3);
+        expect(result.neighbors).toHaveLength(3);
+    });
+
+    test('limits K to the available labeled samples', () => {
+        const result = classifyKnn([
+            { label: 'Rockfall', duration: 3, peakScore: 8 }
+        ], 3, 8, 5);
+
+        expect(result.label).toBe('Rockfall');
+        expect(result.k).toBe(1);
+        expect(result.confidence).toBe(1);
     });
 });
