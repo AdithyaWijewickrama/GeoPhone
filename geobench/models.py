@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 
 class UserProfile(models.Model):
@@ -66,20 +67,19 @@ class FileBatch(models.Model):
 class ClassifierRun(models.Model):
     """A trained classifier snapshot, produced by the train_classifier management command."""
 
-    location = models.ForeignKey(Location, on_delete=models.SET_NULL, null=True, blank=True, related_name='classifier_runs')
     version = models.CharField(max_length=32, unique=True)
-    trained_at = models.DateTimeField(auto_now_add=True)
     feature_extractor_version = models.CharField(max_length=32)
     training_row_count = models.PositiveIntegerField()
-    class_counts = models.JSONField()  # e.g. {"natural_rockfall": 6, "block_removal": 9, ...}
-    held_out_batches = models.JSONField(blank=True, null=True)  # FileBatch filenames used as validation
-    metrics = models.JSONField(blank=True, null=True)  # {"precision": {...}, "recall": {...}, "f1": {...}}
-    model_file = models.CharField(max_length=1024)  # path to the pickled model on disk
-    notes = models.TextField(blank=True, null=True)
+    per_class_counts = models.JSONField()
+    held_out_batches = models.JSONField(blank=True, null=True)
+    precision = models.JSONField(blank=True, null=True)
+    recall = models.JSONField(blank=True, null=True)
+    f1 = models.JSONField(blank=True, null=True)
+    model_path = models.CharField(max_length=1024)
 
     def __str__(self):
-        """Returns the classifier version and its training date."""
-        return f"ClassifierRun {self.version} ({self.trained_at:%Y-%m-%d})"
+        """Returns the classifier version."""
+        return f"ClassifierRun {self.version}"
 
 
 class AnomalyLabel(models.Model):
@@ -126,16 +126,28 @@ class EventFeatures(models.Model):
 
 
 class KnownEvent(models.Model):
-    """Represents a named event interval used to contextualize triage data."""
+    """A dated, categorized event entry from the site log."""
 
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='known_events')
     location = models.ForeignKey(Location, on_delete=models.SET_NULL, null=True, blank=True, related_name='known_events')
-    name = models.CharField(max_length=255)
-    start_time = models.FloatField()  # Timestamp in milliseconds
-    end_time = models.FloatField()    # Timestamp in milliseconds
-    note = models.TextField(blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    date = models.DateField(null=True, blank=True)
+    time_start = models.FloatField()
+    time_end = models.FloatField(null=True, blank=True)
+    time_precision = models.CharField(
+        max_length=16,
+        choices=[('exact', 'Exact'), ('approx', 'Approximate'), ('range', 'Range'), ('unknown', 'Unknown')],
+        default='unknown',
+    )
+    event_type = models.CharField(max_length=100)
+    size_estimate = models.CharField(max_length=100, blank=True)
+    distance_from_sensor_m = models.FloatField(null=True, blank=True)
+    description = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
+    trust_score = models.IntegerField(
+        default=100,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+    )
 
     def __str__(self):
-        """Returns the event name and its start/end timestamps."""
-        return f"{self.name} ({self.start_time} - {self.end_time})"
+        """Returns the event category and date."""
+        return f"{self.event_type} ({self.date})"

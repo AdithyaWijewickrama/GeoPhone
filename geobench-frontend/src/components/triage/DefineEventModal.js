@@ -1,427 +1,334 @@
-import React, { useState, useEffect } from 'react';
-import { formatDateTime, toDatetimeLocalString } from '../../utils';
+import React, { useEffect, useState } from 'react';
+import dayjs from 'dayjs';
+import { DigitalClock } from '@mui/x-date-pickers/DigitalClock';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { API_BASE_URL } from './constants';
 
-/**
- * Provides a form to create or edit a known event, including location and collision handling.
- */
+const emptyEvent = () => ({
+    date: '', time_start: '', time_end: '', time_precision: 'unknown', event_type: '',
+    size_estimate: '', distance_from_sensor_m: '', description: '', notes: '', trust_score: 100,
+    location_id: ''
+});
+const localDateTime = (timestamp, eventDate = '') => {
+    if (timestamp === null || timestamp === undefined || timestamp === '') return { date: '', time: '' };
+    if (typeof timestamp === 'string' && /^\d{1,2}:\d{2}(:\d{2})?$/.test(timestamp)) {
+        const [hour, minute, second = '00'] = timestamp.split(':');
+        return { date: eventDate, time: `${hour.padStart(2, '0')}:${minute}:${second}` };
+    }
+    const date = new Date(Number(timestamp));
+    if (Number.isNaN(date.getTime())) return { date: '', time: '' };
+    const pad = value => String(value).padStart(2, '0');
+    return {
+        date: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+        time: `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+    };
+};
+
+/** Creates or edits a dated, categorized known-event record. */
 export default function DefineEventModal({
-    show,
-    onClose,
-    currentLocation,
-    locations = [],
-    onOpenLocationModal,
-    user,
-    onEventCreated,
-    eventToEdit = null,
-    onDeleteEvent = null
+    show, onClose, currentLocation, onEventCreated, eventToEdit = null, onDeleteEvent = null
 }) {
-    const [availableLocations, setAvailableLocations] = useState(locations || []);
-    const [defineEventLocationId, setDefineEventLocationId] = useState('');
-    const [newEvent, setNewEvent] = useState({ name: '', start: '', end: '', duration: '', note: '' });
-    const [defineCollisionWarning, setDefineCollisionWarning] = useState(null);
-    const [forceDefineSave, setForceDefineSave] = useState(false);
-    const [loadingLocations, setLoadingLocations] = useState(false);
+    const [event, setEvent] = useState(emptyEvent);
+    const [locations, setLocations] = useState([]);
+    const [eventTypeOptions, setEventTypeOptions] = useState([]);
+    const [collisionWarning, setCollisionWarning] = useState(null);
+    const [forceSave, setForceSave] = useState(false);
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const isEditMode = Boolean(eventToEdit?.id);
 
-    const isEditMode = Boolean(eventToEdit && eventToEdit.id);
-
-    // Sync with locations prop when changed
     useEffect(() => {
-        if (Array.isArray(locations) && locations.length > 0) {
-            setAvailableLocations(locations);
-        }
-    }, [locations]);
-
-    // Load available locations from API when modal opens
-    useEffect(() => {
-        if (!show) return;
-
-        let isMounted = true;
-        setLoadingLocations(true);
-
-        fetch(`${API_BASE_URL}/api/locations/`)
-            .then(res => res.json())
+        if (!show) return undefined;
+        let active = true;
+        const locationQuery = currentLocation?.id ? `?location_id=${currentLocation.id}` : '';
+        fetch(`${API_BASE_URL}/api/known-events/${locationQuery}`)
+            .then(response => {
+                if (!response.ok) throw new Error(`Known events request failed (HTTP ${response.status}).`);
+                return response.json();
+            })
             .then(data => {
-                if (isMounted && Array.isArray(data)) {
-                    setAvailableLocations(data);
-                }
+                if (!active || !Array.isArray(data)) return;
+                const knownTypes = data.map(item => item.event_type).filter(Boolean);
+                const currentType = eventToEdit?.event_type || eventToEdit?.name;
+                setEventTypeOptions([...new Set([...knownTypes, currentType].filter(Boolean))].sort());
             })
-            .catch(err => {
-                if (isMounted) console.error("Error loading available locations for known events:", err);
-            })
-            .finally(() => {
-                if (isMounted) setLoadingLocations(false);
+            .catch(error => {
+                if (active) console.error('Error loading known event types:', error);
             });
+        return () => { active = false; };
+    }, [show, currentLocation?.id, eventToEdit?.event_type, eventToEdit?.name]);
 
-        return () => {
-            isMounted = false;
-        };
-    }, [show]);
+    useEffect(() => {
+        let active = true;
+        fetch(`${API_BASE_URL}/api/locations/`)
+            .then(response => {
+                if (!response.ok) throw new Error(`Locations request failed (HTTP ${response.status}).`);
+                return response.json();
+            })
+            .then(data => { if (active && Array.isArray(data)) setLocations(data); })
+            .catch(error => console.error('Error loading locations for known events:', error));
+        return () => { active = false; };
+    }, []);
 
-    // Pre-fill form on open / when eventToEdit changes
     useEffect(() => {
         if (!show) return;
-
-        if (eventToEdit) {
-            const startMs = Number(eventToEdit.start_time || eventToEdit.startTime || 0);
-            const endMs = Number(eventToEdit.end_time || eventToEdit.endTime || (startMs + 10000));
-            const durSec = Math.max(1, Math.round((endMs - startMs) / 1000));
-
-            setNewEvent({
-                name: eventToEdit.name || '',
-                start: startMs ? toDatetimeLocalString(new Date(startMs)) : '',
-                end: endMs ? toDatetimeLocalString(new Date(endMs)) : '',
-                duration: String(durSec),
-                note: eventToEdit.note || ''
-            });
-            setDefineEventLocationId(
-                eventToEdit.location_id ? String(eventToEdit.location_id) : (currentLocation ? String(currentLocation.id) : '')
-            );
+        if (!eventToEdit) {
+            setEvent({ ...emptyEvent(), location_id: currentLocation?.id ? String(currentLocation.id) : '' });
         } else {
-            setNewEvent({ name: '', start: '', end: '', duration: '', note: '' });
-            if (currentLocation) {
-                setDefineEventLocationId(String(currentLocation.id));
-            } else {
-                setDefineEventLocationId('');
-            }
+            const start = localDateTime(eventToEdit.time_start ?? eventToEdit.start_time, eventToEdit.date || '');
+            const end = localDateTime(eventToEdit.time_end ?? eventToEdit.end_time, eventToEdit.date || start.date);
+            setEvent({
+                date: eventToEdit.date || start.date,
+                time_start: start.time,
+                time_end: end.time,
+                time_precision: eventToEdit.time_precision || 'unknown',
+                event_type: eventToEdit.event_type || eventToEdit.name || '',
+                size_estimate: eventToEdit.size_estimate || '',
+                distance_from_sensor_m: eventToEdit.distance_from_sensor_m ?? '',
+                description: eventToEdit.description || '',
+                notes: eventToEdit.notes || eventToEdit.note || '',
+                trust_score: eventToEdit.trust_score ?? 100,
+                location_id: eventToEdit.location_id ? String(eventToEdit.location_id) : ''
+            });
         }
-        setDefineCollisionWarning(null);
-        setForceDefineSave(false);
+        setCollisionWarning(null);
+        setForceSave(false);
     }, [show, eventToEdit, currentLocation]);
 
     if (!show) return null;
 
-    /**
-     * Updates the event start time and synchronizes its end or duration.
-     */
-    const handleStartChange = (e) => {
-        const newStart = e.target.value;
-        let updates = { start: newStart };
+    const update = (field, value) => setEvent(previous => ({ ...previous, [field]: value }));
+    const clockPickerValue = time => time && event.date
+        ? dayjs(`${event.date}T${time}`)
+        : null;
+    const updateClock = (field, value) => update(field, value?.isValid() ? value.format('HH:mm:ss') : '');
 
-        if (newStart && newEvent.duration) {
-            const endMs = new Date(newStart).getTime() + Number(newEvent.duration) * 1000;
-            updates.end = toDatetimeLocalString(new Date(endMs));
-        } else if (newStart && newEvent.end) {
-            const dur = (new Date(newEvent.end).getTime() - new Date(newStart).getTime()) / 1000;
-            updates.duration = dur >= 0 ? dur : '';
-        }
-        setNewEvent(prev => ({ ...prev, ...updates }));
+    const eventTimestamps = () => {
+        const start = new Date(`${event.date}T${event.time_start}`).getTime();
+        let end = event.time_end ? new Date(`${event.date}T${event.time_end}`).getTime() : null;
+        if (end !== null && end <= start) end += 24 * 60 * 60 * 1000;
+        return { start, end };
     };
 
-    /**
-     * Updates the end time and recalculates duration.
-     */
-    const handleEndChange = (e) => {
-        const newEnd = e.target.value;
-        let updates = { end: newEnd };
-
-        if (newEnd && newEvent.start) {
-            const dur = (new Date(newEnd).getTime() - new Date(newEvent.start).getTime()) / 1000;
-            updates.duration = dur >= 0 ? dur : '';
+    const handleSave = async (force = false) => {
+        if (!event.date || !event.time_start || !event.event_type.trim()) {
+            return alert('Please provide the event date, start time, and event type.');
         }
-        setNewEvent(prev => ({ ...prev, ...updates }));
-    };
-
-    /**
-     * Updates duration and derives the end time from the start.
-     */
-    const handleDurationChange = (e) => {
-        const newDur = e.target.value;
-        let updates = { duration: newDur };
-
-        if (newDur && newEvent.start) {
-            const endMs = new Date(newEvent.start).getTime() + Number(newDur) * 1000;
-            updates.end = toDatetimeLocalString(new Date(endMs));
-        }
-        setNewEvent(prev => ({ ...prev, ...updates }));
-    };
-
-    /**
-     * Validates and submits a new or edited known event; can retry after a collision warning.
-     */
-    const handleSaveEvent = async (overrideForce = false) => {
-        if (!newEvent.name.trim() || !newEvent.start || !newEvent.end) {
-            return alert("Please fill in Event Name, Start Time, and End Time.");
+        const { start, end } = eventTimestamps();
+        if (!Number.isFinite(start) || (end !== null && (!Number.isFinite(end) || end <= start))) {
+            return alert('Please provide a valid event time interval.');
         }
 
-        const start_time = new Date(newEvent.start).getTime();
-        const end_time = new Date(newEvent.end).getTime();
+        const payload = {
+            id: isEditMode ? eventToEdit.id : undefined,
+            date: event.date,
+            time_start: event.time_start,
+            time_end: event.time_end || null,
+            time_precision: event.time_precision,
+            event_type: event.event_type.trim(),
+            size_estimate: event.size_estimate,
+            distance_from_sensor_m: event.distance_from_sensor_m === '' ? null : Number(event.distance_from_sensor_m),
+            description: event.description,
+            notes: event.notes,
+            trust_score: Number(event.trust_score),
+            location_id: event.location_id || null,
+            force: force || forceSave
+        };
 
-        if (end_time <= start_time) {
-            return alert("End time must be after Start time.");
-        }
-
-        const locId = defineEventLocationId || (currentLocation ? currentLocation.id : null);
         setSaving(true);
-
         try {
-            const url = isEditMode
+            const response = await fetch(isEditMode
                 ? `${API_BASE_URL}/api/known-events/${eventToEdit.id}/`
-                : `${API_BASE_URL}/api/known-events/`;
-
-            const method = isEditMode ? 'PUT' : 'POST';
-
-            const payload = {
-                id: isEditMode ? eventToEdit.id : undefined,
-                name: newEvent.name.trim(),
-                start_time,
-                end_time,
-                location_id: locId ? parseInt(locId) : null,
-                note: newEvent.note,
-                force: overrideForce || forceDefineSave,
-                user_id: user ? user.id : null
-            };
-
-            const res = await fetch(url, {
-                method,
+                : `${API_BASE_URL}/api/known-events/`, {
+                method: isEditMode ? 'PUT' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            const data = await res.json();
-
+            const contentType = response.headers.get('content-type') || '';
+            const data = contentType.includes('application/json') ? await response.json() : {};
             if (data.status === 'collision_warning') {
-                setDefineCollisionWarning(data);
-                setSaving(false);
+                setCollisionWarning(data);
                 return;
             }
-
-            if (!res.ok || data.error) {
-                alert(data.error || (isEditMode ? "Failed to update event" : "Failed to create event"));
-                setSaving(false);
+            if (!response.ok || data.error) {
+                alert(data.error || `Failed to save known event (HTTP ${response.status}).`);
                 return;
             }
-
-            if (onEventCreated) {
-                await onEventCreated();
-            }
-
-            handleCloseModal();
-        } catch (err) {
-            console.error(err);
-            alert("Error connecting to server.");
+            await onEventCreated?.();
+            handleClose();
+        } catch (error) {
+            console.error(error);
+            alert('Error connecting to server.');
         } finally {
             setSaving(false);
         }
     };
 
-    /**
-     * Confirms and deletes the event currently being edited.
-     */
     const handleDelete = async () => {
-        if (!eventToEdit || !eventToEdit.id) return;
-        if (!window.confirm(`Are you sure you want to delete known event "${eventToEdit.name}"?`)) {
-            return;
-        }
-
+        if (!eventToEdit?.id || !window.confirm(`Delete known event "${event.event_type}"?`)) return;
         setDeleting(true);
         try {
-            if (onDeleteEvent) {
-                await onDeleteEvent(eventToEdit);
-            } else {
-                const res = await fetch(`${API_BASE_URL}/api/known-events/${eventToEdit.id}/`, {
-                    method: 'DELETE'
-                });
-                if (!res.ok) {
-                    const data = await res.json().catch(() => ({}));
-                    alert(data.error || "Failed to delete event");
-                    setDeleting(false);
-                    return;
-                }
-                if (onEventCreated) {
-                    await onEventCreated();
-                }
+            if (onDeleteEvent) await onDeleteEvent(eventToEdit);
+            else {
+                const response = await fetch(`${API_BASE_URL}/api/known-events/${eventToEdit.id}/`, { method: 'DELETE' });
+                if (!response.ok) throw new Error('Failed to delete event.');
+                await onEventCreated?.();
             }
-            handleCloseModal();
-        } catch (err) {
-            console.error("Error deleting event:", err);
-            alert("Error connecting to server.");
+            handleClose();
+        } catch (error) {
+            console.error(error);
+            alert(error.message || 'Error connecting to server.');
         } finally {
             setDeleting(false);
         }
     };
 
-    /**
-     * Closes the modal and resets its related state.
-     */
-    const handleCloseModal = () => {
-        setDefineCollisionWarning(null);
-        setForceDefineSave(false);
-        setNewEvent({ name: '', start: '', end: '', duration: '', note: '' });
+    const handleClose = () => {
+        setCollisionWarning(null);
+        setForceSave(false);
+        setEvent(emptyEvent());
         onClose();
     };
 
     return (
+        <LocalizationProvider dateAdapter={AdapterDayjs}>
         <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 1050 }}>
-            <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-dialog modal-dialog-centered modal-lg">
                 <div className="modal-content bg-dark border-secondary text-light shadow-lg">
                     <div className="modal-header border-secondary">
-                        <div className="d-flex align-items-center gap-2">
-                            <span>{isEditMode ? '✏️' : '📌'}</span>
-                            <h5 className="modal-title text-info mb-0">
-                                {isEditMode ? 'Edit Known Event' : 'Define Custom Known Event'}
-                            </h5>
-                        </div>
-                        <button
-                            type="button"
-                            className="btn-close btn-close-white"
-                            onClick={handleCloseModal}
-                        ></button>
+                        <h5 className="modal-title text-info">{isEditMode ? 'Edit Known Event' : 'Define Known Event'}</h5>
+                        <button type="button" className="btn-close btn-close-white" onClick={handleClose} />
                     </div>
                     <div className="modal-body">
-                        <p className="small text-muted mb-3">
-                            {isEditMode
-                                ? 'Update properties or time bounds for this registered known event rule.'
-                                : 'Define a recurring or verified seismic event rule. Files matching this time window will be grouped into known event chunks in List 2.'}
-                        </p>
-
-                        {/* Location Selection for Event */}
-                        <div className="mb-3">
-                            <div className="d-flex justify-content-between align-items-center mb-1">
-                                <label className="form-label text-warning small fw-bold mb-0">Location *</label>
-                                {loadingLocations && (
-                                    <span className="text-muted small">
-                                        <span className="spinner-border spinner-border-sm me-1" role="status" style={{ width: '10px', height: '10px' }}></span>
-                                        Loading locations...
-                                    </span>
-                                )}
-                            </div>
-                            <div className="input-group input-group-sm">
-                                <select
-                                    className="form-select bg-dark text-light border-warning"
-                                    value={defineEventLocationId}
-                                    onChange={(e) => setDefineEventLocationId(e.target.value)}
-                                >
-                                    <option value="">-- No Location (Global) --</option>
-                                    {(availableLocations || []).map(loc => (
-                                        <option key={loc.id} value={loc.id}>{loc.name}</option>
-                                    ))}
-                                </select>
-                                <button
-                                    className="btn btn-outline-warning"
-                                    type="button"
-                                    onClick={onOpenLocationModal}
-                                >
-                                    + New Location
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Event Name */}
-                        <div className="mb-3">
-                            <label className="form-label text-info small fw-bold">Event Name *</label>
-                            <input
-                                type="text"
-                                className="form-control bg-dark text-light border-info"
-                                value={newEvent.name}
-                                onChange={e => setNewEvent({ ...newEvent, name: e.target.value })}
-                                placeholder='e.g. "Controlled Blast", "Freight Train"'
-                            />
-                        </div>
-
-                        {/* Start Date & Duration */}
-                        <div className="row mb-3">
+                        <div className="row g-3">
                             <div className="col-md-6">
-                                <label className="form-label text-light small">Start Date & Time *</label>
-                                <input
-                                    type="datetime-local"
-                                    step="1"
-                                    className="form-control bg-dark text-light border-secondary"
-                                    value={newEvent.start}
-                                    onChange={handleStartChange}
+                                <label className="form-label small">Location</label>
+                                <select className="form-select bg-dark text-light border-secondary" value={event.location_id} onChange={e => update('location_id', e.target.value)}>
+                                    <option value="">No location</option>
+                                    {locations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}
+                                </select>
+                            </div>
+                            <div className="col-md-4">
+                                <label className="form-label small">Date *</label>
+                                <DatePicker
+                                    value={event.date ? dayjs(event.date) : null}
+                                    onChange={value => update('date', value?.isValid() ? value.format('YYYY-MM-DD') : '')}
+                                    slotProps={{
+                                        textField: {
+                                            fullWidth: true,
+                                            size: 'small',
+                                            sx: {
+                                                '& .MuiInputBase-root': { backgroundColor: '#212529', color: '#f8f9fa' },
+                                                '& .MuiInputBase-input': { color: '#f8f9fa' },
+                                                '& .MuiOutlinedInput-notchedOutline': { borderColor: '#6c757d' },
+                                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#adb5bd' },
+                                                '& .MuiSvgIcon-root': { color: '#adb5bd' }
+                                            }
+                                        }
+                                    }}
+                                />
+                            </div>
+                            <div className="col-md-4">
+                                <label className="form-label small">Start time *</label>
+                                <DigitalClock
+                                    value={clockPickerValue(event.time_start)}
+                                    onChange={value => updateClock('time_start', value)}
+                                    ampm={false}
+                                    timeStep={5}
+                                    sx={{
+                                        height: 220,
+                                        overflowY: 'auto',
+                                        backgroundColor: '#212529',
+                                        color: '#f8f9fa',
+                                        border: '1px solid #6c757d',
+                                        borderRadius: 1,
+                                        '& .MuiMenuItem-root': { color: '#f8f9fa' },
+                                        '& .MuiMenuItem-root.Mui-selected': { backgroundColor: '#087990', color: '#fff' },
+                                        '& .MuiMenuItem-root:hover': { backgroundColor: '#343a40' }
+                                    }}
+                                />
+                            </div>
+                            <div className="col-md-4">
+                                <label className="form-label small d-flex justify-content-between align-items-center">
+                                    <span>End time (optional)</span>
+                                    {event.time_end && <button type="button" className="btn btn-link btn-sm text-info p-0" onClick={() => update('time_end', '')}>Clear</button>}
+                                </label>
+                                <DigitalClock
+                                    value={clockPickerValue(event.time_end)}
+                                    onChange={value => updateClock('time_end', value)}
+                                    ampm={false}
+                                    timeStep={5}
+                                    sx={{
+                                        height: 220,
+                                        overflowY: 'auto',
+                                        backgroundColor: '#212529',
+                                        color: '#f8f9fa',
+                                        border: '1px solid #6c757d',
+                                        borderRadius: 1,
+                                        '& .MuiMenuItem-root': { color: '#f8f9fa' },
+                                        '& .MuiMenuItem-root.Mui-selected': { backgroundColor: '#087990', color: '#fff' },
+                                        '& .MuiMenuItem-root:hover': { backgroundColor: '#343a40' }
+                                    }}
                                 />
                             </div>
                             <div className="col-md-6">
-                                <label className="form-label text-light small">Duration (Seconds)</label>
-                                <div className="input-group">
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        step="1"
-                                        className="form-control bg-dark text-light border-secondary"
-                                        value={newEvent.duration}
-                                        onChange={handleDurationChange}
-                                        placeholder="e.g. 15"
-                                    />
-                                    <span className="input-group-text bg-dark text-muted border-secondary">s</span>
-                                </div>
+                                <label className="form-label small">Event type *</label>
+                                <input
+                                    className="form-control bg-dark text-light border-secondary"
+                                    list="known-event-type-options"
+                                    value={event.event_type}
+                                    onChange={e => update('event_type', e.target.value)}
+                                    placeholder="Select or enter an event type"
+                                />
+                                <datalist id="known-event-type-options">
+                                    {eventTypeOptions.map(type => <option key={type} value={type} />)}
+                                </datalist>
+                            </div>
+                            <div className="col-md-6">
+                                <label className="form-label small">Time precision</label>
+                                <select className="form-select bg-dark text-light border-secondary" value={event.time_precision} onChange={e => update('time_precision', e.target.value)}>
+                                    <option value="exact">Exact</option><option value="approx">Approximate</option><option value="range">Range</option><option value="unknown">Unknown</option>
+                                </select>
+                            </div>
+                            <div className="col-md-4">
+                                <label className="form-label small">Size estimate</label>
+                                <input className="form-control bg-dark text-light border-secondary" value={event.size_estimate} onChange={e => update('size_estimate', e.target.value)} />
+                            </div>
+                            <div className="col-md-4">
+                                <label className="form-label small">Distance from sensor (m)</label>
+                                <input type="number" min="0" step="any" className="form-control bg-dark text-light border-secondary" value={event.distance_from_sensor_m} onChange={e => update('distance_from_sensor_m', e.target.value)} />
+                            </div>
+                            <div className="col-12">
+                                <label className="form-label small">Description</label>
+                                <textarea rows="2" className="form-control bg-dark text-light border-secondary" value={event.description} onChange={e => update('description', e.target.value)} />
+                            </div>
+                            <div className="col-12">
+                                <label className="form-label small">Notes</label>
+                                <textarea rows="2" className="form-control bg-dark text-light border-secondary" value={event.notes} onChange={e => update('notes', e.target.value)} />
+                            </div>
+                            <div className="col-12">
+                                <label className="form-label small d-flex justify-content-between">
+                                    <span>Trust score</span><span className="text-warning fw-bold">{event.trust_score}/100</span>
+                                </label>
+                                <input type="range" className="form-range" min="0" max="100" step="1" value={event.trust_score} onChange={e => update('trust_score', Number(e.target.value))} />
                             </div>
                         </div>
 
-                        {/* End Date */}
-                        <div className="mb-3">
-                            <label className="form-label text-light small">End Date & Time *</label>
-                            <input
-                                type="datetime-local"
-                                step="1"
-                                className="form-control bg-dark text-light border-secondary"
-                                value={newEvent.end}
-                                onChange={handleEndChange}
-                            />
-                        </div>
-
-                        {/* Optional Note */}
-                        <div className="mb-3">
-                            <label className="form-label text-light small">Description / Operational Note</label>
-                            <textarea
-                                rows="2"
-                                className="form-control form-control-sm bg-dark text-light border-secondary"
-                                placeholder="Details about this seismic event window..."
-                                value={newEvent.note}
-                                onChange={e => setNewEvent({ ...newEvent, note: e.target.value })}
-                            ></textarea>
-                        </div>
-
-                        {/* Collision Warning Box */}
-                        {defineCollisionWarning && (
-                            <div className="alert alert-warning small mb-3">
-                                <h6 className="alert-heading fw-bold mb-1">⚠️ Known Event Collision Warning</h6>
-                                <p className="mb-1">{defineCollisionWarning.message}</p>
-                                <ul className="mb-2">
-                                    {defineCollisionWarning.collisions.map((c, i) => (
-                                        <li key={i}>
-                                            <strong>{c.name}</strong>: {formatDateTime(c.start_time)} - {formatDateTime(c.end_time)}
-                                        </li>
-                                    ))}
-                                </ul>
-                                <div className="form-check">
-                                    <input
-                                        type="checkbox"
-                                        className="form-check-input"
-                                        id="forceDefineCheck"
-                                        checked={forceDefineSave}
-                                        onChange={e => setForceDefineSave(e.target.checked)}
-                                    />
-                                    <label className="form-check-label text-light" htmlFor="forceDefineCheck">
-                                        I understand. Save overlapping event anyway.
-                                    </label>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="d-flex gap-2">
-                            {isEditMode && (
-                                <button
-                                    type="button"
-                                    className="btn btn-outline-danger fw-bold"
-                                    onClick={handleDelete}
-                                    disabled={deleting || saving}
-                                >
-                                    {deleting ? 'Deleting...' : '🗑️ Delete'}
-                                </button>
-                            )}
-                            <button
-                                className="btn btn-info flex-grow-1 fw-bold"
-                                onClick={() => handleSaveEvent(forceDefineSave)}
-                                disabled={saving || deleting}
-                            >
-                                {saving ? 'Saving...' : (isEditMode ? 'Save Changes' : 'Save Known Event Rule')}
-                            </button>
+                        {collisionWarning && <div className="alert alert-warning small mt-3">
+                            <strong>{collisionWarning.message}</strong>
+                            <ul className="mb-2">{collisionWarning.collisions.map(item => <li key={item.id}>{item.event_type || item.name} ({new Date(item.start_time).toLocaleString()} – {item.end_time ? new Date(item.end_time).toLocaleString() : 'end time unknown'})</li>)}</ul>
+                            <label className="form-check-label"><input type="checkbox" className="form-check-input me-2" checked={forceSave} onChange={e => setForceSave(e.target.checked)} />Save overlapping event anyway</label>
+                        </div>}
+                        <div className="d-flex gap-2 mt-3">
+                            {isEditMode && <button type="button" className="btn btn-outline-danger" onClick={handleDelete} disabled={deleting || saving}>{deleting ? 'Deleting…' : 'Delete'}</button>}
+                            <button type="button" className="btn btn-info flex-grow-1 fw-bold" onClick={() => handleSave(forceSave)} disabled={saving || deleting}>{saving ? 'Saving…' : (isEditMode ? 'Save Changes' : 'Save Known Event')}</button>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+        </LocalizationProvider>
     );
 }

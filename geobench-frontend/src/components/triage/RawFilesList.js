@@ -51,8 +51,8 @@ export default function RawFilesList({
     const getEventsInRange = (startMs, endMs) => {
         if (!knownEvents || knownEvents.length === 0) return [];
         return knownEvents.filter(ev => {
-            const evStart = ev.start_time || ev.startTime || 0;
-            const evEnd = ev.end_time || ev.endTime || (evStart + 10000);
+            const evStart = ev.start_time ?? ev.startTime ?? 0;
+            const evEnd = ev.end_time ?? ev.endTime ?? (evStart + 10000);
             return Math.max(startMs, evStart) <= Math.min(endMs, evEnd);
         });
     };

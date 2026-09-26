@@ -163,7 +163,7 @@ export default function FlaggedEventsTable({
             </div>
 
             <div className="card-body p-0">
-                <div className="table-responsive" style={{ maxHeight: '280px', overflowY: 'auto' }}>
+                <div className="table-responsive" style={{ maxHeight: 'min(45vh, 560px)', overflowY: 'auto' }}>
                     <table className="table table-dark table-striped table-hover mb-0" style={{ fontSize: '0.82rem' }}>
                         <thead className="table-secondary sticky-top" style={{ zIndex: 1 }}>
                             <tr>
@@ -209,7 +209,7 @@ export default function FlaggedEventsTable({
                             ) : (
                                 currentEvents.map((ev, idx) => {
                                     const isSelected = selectedTableEvents.has(idx);
-                                    const labelKey = `${chunk.key}_${ev.startTime}_${ev.endTime}`;
+                                    const labelKey = `${chunk.name}_${Math.round(ev.startTime)}_${Math.round(ev.endTime)}`;
                                     const saved = labels[labelKey] || {};
                                     const durationMs = ev.endTime - ev.startTime;
 
@@ -257,8 +257,8 @@ export default function FlaggedEventsTable({
                                                     }}
                                                 >
                                                     <option value="">(None)</option>
-                                                    {LABEL_OPTIONS.map(opt => (
-                                                        <option key={opt} value={opt}>{opt}</option>
+                                                    {LABEL_OPTIONS.filter(Boolean).map(option => (
+                                                        <option key={option} value={option}>{option}</option>
                                                     ))}
                                                 </select>
                                             </td>

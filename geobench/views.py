@@ -1,8 +1,10 @@
 import base64
 import json
 import re
+from datetime import date, datetime, time as datetime_time, timedelta
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
+from django.db import transaction
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
@@ -362,6 +364,67 @@ def process_file_api(request):
         return JsonResponse({'error': result.get('reason', 'Unknown error')}, status=400)
     return JsonResponse({'error': 'Invalid request'}, status=400)
 
+@csrf_exempt
+def save_labels_batch(request):
+    """Creates/updates AnomalyLabel + EventFeatures for multiple events in one request."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Invalid method'}, status=405)
+    try:
+        data = json.loads(request.body)
+        events = data.get('events', [])
+        if not events:
+            return JsonResponse({'error': 'No events provided'}, status=400)
+
+        user = get_request_user(request, data)
+        location_id = data.get('location_id')
+        location = Location.objects.filter(id=location_id).first() if location_id else None
+
+        results = []
+        with transaction.atomic():
+            for item in events:
+                start_ms, end_ms = round(item['startTime']), round(item['endTime'])
+                event_id = f"{item['file']}_{start_ms}_{end_ms}"
+
+                file_batch, _ = FileBatch.objects.get_or_create(
+                    filename=item['file'], defaults={'user': user, 'location': location}
+                )
+                if location and file_batch.location != location:
+                    file_batch.location = location
+                if user and not file_batch.user:
+                    file_batch.user = user
+                file_batch.save()
+
+                if not item.get('label') and not item.get('note'):
+                    AnomalyLabel.objects.filter(id=event_id).delete()
+                    results.append({'id': event_id, 'status': 'cleared'})
+                    continue
+
+                label_obj, _ = AnomalyLabel.objects.update_or_create(
+                    id=event_id,
+                    defaults={
+                        'user': user, 'file_batch': file_batch, 'location': location,
+                        'start_time': str(item['startTime']), 'end_time': str(item['endTime']),
+                        'duration': item.get('duration', 0), 'peak_score': item.get('peakScore', 0),
+                        'label_type': item['label'], 'note': item.get('note', ''),
+                        'suggested_label': item.get('suggested_label') or None,
+                        'suggested_confidence': float(item['suggested_confidence']) if item.get('suggested_confidence') is not None else None,
+                        'suggested_by': ClassifierRun.objects.filter(pk=item.get('suggested_by_id')).first() if item.get('suggested_by_id') else None,
+                    }
+                )
+                if item.get('times') and item.get('volts'):
+                    try:
+                        features = extract_event_features(item['times'], item['volts'], item['startTime'], item['endTime'])
+                        EventFeatures.objects.update_or_create(
+                            anomaly_label=label_obj, defaults={'values': features, 'extractor_version': FEATURE_VERSION}
+                        )
+                    except ValueError:
+                        pass
+                results.append({'id': event_id, 'status': 'success'})
+
+        return JsonResponse({'status': 'success', 'results': results})
+    except Exception as e:
+        print(f"SAVE LABELS BATCH ERROR: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=400)
 
 @csrf_exempt
 def save_label(request):
@@ -428,13 +491,18 @@ def save_label(request):
             # Check if user requested saving as known event as well
             if data.get('save_as_known_event'):
                 event_name = data.get('label') or 'Labeled Event'
+                start_time = float(data['startTime'])
+                end_time = float(data['endTime'])
                 KnownEvent.objects.create(
                     user=user,
-                    name=event_name,
-                    start_time=data['startTime'],
-                    end_time=data['endTime'],
                     location=location,
-                    note=data.get('note', '')
+                    date=datetime.fromtimestamp(start_time / 1000).date(),
+                    time_start=start_time,
+                    time_end=end_time,
+                    time_precision='exact',
+                    event_type=event_name,
+                    description='',
+                    notes=data.get('note', ''),
                 )
 
             return JsonResponse({
@@ -600,28 +668,14 @@ def model_metadata_api(request):
 def handle_known_events(request):
     """Lists, creates, updates, or deletes known events according to the HTTP method and request action."""
     if request.method == 'GET':
+        events_query = KnownEvent.objects.select_related('user', 'location').all()
         location_id = request.GET.get('location_id')
         user_id = request.GET.get('user_id')
-        qs = KnownEvent.objects.select_related('location', 'user').all()
         if location_id and location_id != 'all':
-            qs = qs.filter(location_id=location_id)
+            events_query = events_query.filter(location_id=location_id)
         if user_id and user_id != 'all':
-            qs = qs.filter(user_id=user_id)
-
-        events = [
-            {
-                'id': e.id,
-                'name': e.name,
-                'start_time': e.start_time,
-                'end_time': e.end_time,
-                'note': e.note or '',
-                'location_id': e.location_id,
-                'location_name': e.location.name if e.location else None,
-                'user_id': e.user_id,
-                'user_name': e.user.username if e.user else None
-            }
-            for e in qs.order_by('start_time')
-        ]
+            events_query = events_query.filter(user_id=user_id)
+        events = [_serialize_known_event(event) for event in events_query.order_by('date', 'time_start')]
         return JsonResponse(events, safe=False)
 
     elif request.method == 'POST':
@@ -641,7 +695,7 @@ def handle_known_events(request):
                 event.delete()
                 return JsonResponse({'status': 'deleted', 'id': deleted_id})
 
-            if action == 'update' or method_override in ('PUT', 'PATCH') or (event_id and 'name' in data):
+            if action == 'update' or method_override in ('PUT', 'PATCH') or (event_id and ('name' in data or 'event_type' in data)):
                 return _update_known_event(request, event_id, data)
 
             return _create_known_event(request, data)
@@ -683,31 +737,12 @@ def handle_known_events(request):
 
 def _create_known_event(request, data):
     """Validates and creates a known event, returning an overlap warning unless the request forces creation."""
-    name = (data.get('name') or '').strip()
-    if not name:
-        return JsonResponse({'error': 'Event name is required'}, status=400)
-
-    start_time = float(data['start_time'])
-    end_time = float(data['end_time'])
-    location_id = data.get('location_id')
-    note = data.get('note', '')
+    try:
+        values = _known_event_values(data)
+    except (KeyError, TypeError, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
     force = data.get('force', False)
-    user = get_request_user(request, data)
-
-    # Check collision:
-    collisions_qs = KnownEvent.objects.filter(start_time__lt=end_time, end_time__gt=start_time)
-    if location_id:
-        collisions_qs = collisions_qs.filter(location_id=location_id)
-    collisions = [
-        {
-            'id': c.id,
-            'name': c.name,
-            'start_time': c.start_time,
-            'end_time': c.end_time,
-            'location_name': c.location.name if c.location else None
-        }
-        for c in collisions_qs
-    ]
+    collisions = _known_event_collisions(values['date'], values['time_start'], values['time_end'])
 
     if collisions and not force:
         return JsonResponse({
@@ -716,27 +751,10 @@ def _create_known_event(request, data):
             'message': f"Collides with {len(collisions)} existing known event(s)."
         })
 
-    location = Location.objects.filter(id=location_id).first() if location_id else None
-    event = KnownEvent.objects.create(
-        user=user,
-        name=name,
-        start_time=start_time,
-        end_time=end_time,
-        location=location,
-        note=note
-    )
-    return JsonResponse({
-        'id': event.id,
-        'name': event.name,
-        'start_time': event.start_time,
-        'end_time': event.end_time,
-        'location_id': event.location_id,
-        'location_name': event.location.name if event.location else None,
-        'user_id': event.user_id,
-        'user_name': event.user.username if event.user else None,
-        'note': event.note,
-        'status': 'success'
-    })
+    request_user = getattr(request, 'user', None)
+    user = request_user if getattr(request_user, 'is_authenticated', False) else None
+    event = KnownEvent.objects.create(user=user, **values)
+    return JsonResponse({**_serialize_known_event(event), 'status': 'success'})
 
 
 def _update_known_event(request, event_id, data):
@@ -744,32 +762,12 @@ def _update_known_event(request, event_id, data):
     event = KnownEvent.objects.filter(id=event_id).first()
     if not event:
         return JsonResponse({'error': 'Event not found'}, status=404)
-
-    name = (data.get('name') or event.name).strip()
-    if not name:
-        return JsonResponse({'error': 'Event name cannot be empty'}, status=400)
-
-    start_time = float(data.get('start_time', event.start_time))
-    end_time = float(data.get('end_time', event.end_time))
-    location_id = data.get('location_id', event.location_id)
-    note = data.get('note', event.note)
+    try:
+        values = _known_event_values(data, existing=event)
+    except (KeyError, TypeError, ValueError) as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
     force = data.get('force', False)
-    user = get_request_user(request, data) or event.user
-
-    # Collision check excluding current event
-    collisions_qs = KnownEvent.objects.filter(start_time__lt=end_time, end_time__gt=start_time).exclude(id=event.id)
-    if location_id:
-        collisions_qs = collisions_qs.filter(location_id=location_id)
-    collisions = [
-        {
-            'id': c.id,
-            'name': c.name,
-            'start_time': c.start_time,
-            'end_time': c.end_time,
-            'location_name': c.location.name if c.location else None
-        }
-        for c in collisions_qs
-    ]
+    collisions = _known_event_collisions(values['date'], values['time_start'], values['time_end'], exclude_id=event.id)
 
     if collisions and not force:
         return JsonResponse({
@@ -778,28 +776,157 @@ def _update_known_event(request, event_id, data):
             'message': f"Collides with {len(collisions)} existing known event(s)."
         })
 
-    location = Location.objects.filter(id=location_id).first() if location_id else None
-    event.name = name
-    event.start_time = start_time
-    event.end_time = end_time
-    event.location = location
-    event.note = note
-    if user:
-        event.user = user
+    for field, value in values.items():
+        setattr(event, field, value)
     event.save()
+    return JsonResponse({**_serialize_known_event(event), 'status': 'success'})
 
-    return JsonResponse({
+
+def _known_event_values(data, existing=None):
+    """Validate canonical known-event fields, while accepting legacy API aliases."""
+    start_raw = data.get('time_start', data.get('start_time', existing.time_start if existing else None))
+    end_raw = data.get('time_end', data.get('end_time', existing.time_end if existing else None))
+    if start_raw is None:
+        raise ValueError('Start time is required.')
+    date_value = data.get('date') or (existing.date.isoformat() if existing and existing.date else None)
+    event_date, start_time, end_time = _parse_known_event_times(start_raw, end_raw, date_value)
+    if end_time == start_time:
+        raise ValueError('End time must differ from start time.')
+    start_datetime = datetime.combine(event_date, start_time)
+    end_datetime = datetime.combine(event_date, end_time) if end_time is not None else None
+    if end_datetime is not None and end_datetime <= start_datetime:
+        end_datetime += timedelta(days=1)
+    event_type = (data.get('event_type', data.get('name', existing.event_type if existing else '')) or '').strip()
+    if not event_type:
+        raise ValueError('Event type is required.')
+    trust_score = int(data.get('trust_score', existing.trust_score if existing else 100))
+    if not 0 <= trust_score <= 100:
+        raise ValueError('Trust score must be between 0 and 100.')
+    return {
+        'date': event_date,
+        'time_start': start_datetime.timestamp() * 1000,
+        'time_end': end_datetime.timestamp() * 1000 if end_datetime else None,
+        'time_precision': data.get('time_precision', existing.time_precision if existing else 'unknown'),
+        'event_type': event_type,
+        'size_estimate': data.get('size_estimate', existing.size_estimate if existing else ''),
+        'distance_from_sensor_m': float(data['distance_from_sensor_m']) if data.get('distance_from_sensor_m') not in (None, '') else (existing.distance_from_sensor_m if existing else None),
+        'description': data.get('description', existing.description if existing else ''),
+        'notes': data.get('notes', data.get('note', existing.notes if existing else '')),
+        'trust_score': trust_score,
+        'location': _known_event_location(data, existing),
+    }
+
+
+def _parse_known_event_times(start_raw, end_raw, date_value=None):
+    """Parse clock values and legacy millisecond timestamps into a date plus clock times."""
+    legacy_start = None
+    try:
+        numeric_start = float(start_raw)
+        legacy_start = datetime.fromtimestamp(numeric_start / 1000 if numeric_start > 1e11 else numeric_start)
+        start_time = legacy_start.time()
+    except (ValueError, TypeError, OverflowError, OSError):
+        start_time = datetime_time.fromisoformat(str(start_raw))
+
+    if date_value:
+        event_date = date_value if isinstance(date_value, date) else date.fromisoformat(str(date_value))
+    elif legacy_start:
+        event_date = legacy_start.date()
+    else:
+        raise ValueError('Date is required when using a clock time.')
+
+    if end_raw in (None, ''):
+        end_time = None
+    else:
+        try:
+            numeric_end = float(end_raw)
+            end_time = datetime.fromtimestamp(numeric_end / 1000 if numeric_end > 1e11 else numeric_end).time()
+        except (ValueError, TypeError, OverflowError, OSError):
+            end_time = datetime_time.fromisoformat(str(end_raw))
+    return event_date, start_time, end_time
+
+
+def _known_event_datetimes(event_date, start_time, end_time):
+    """Normalize clock values and legacy/current timestamp values to datetimes."""
+    start_dt, _ = _known_event_datetime(event_date, start_time)
+    if end_time is None:
+        return start_dt, None
+    end_dt, end_is_absolute = _known_event_datetime(start_dt.date(), end_time)
+    if not end_is_absolute and end_dt <= start_dt:
+        end_dt += timedelta(days=1)
+    return start_dt, end_dt
+
+
+def _known_event_datetime(event_date, value):
+    """Convert a stored millisecond timestamp or a clock value to a datetime."""
+    if isinstance(value, datetime):
+        return value, True
+    try:
+        numeric = float(value)
+        timestamp = numeric / 1000 if numeric > 1e11 else numeric
+        return datetime.fromtimestamp(timestamp), True
+    except (ValueError, TypeError, OverflowError, OSError):
+        clock_time = value if isinstance(value, datetime_time) else datetime_time.fromisoformat(str(value))
+        if event_date is None:
+            raise ValueError('Date is required to interpret a clock time.')
+        return datetime.combine(event_date, clock_time), False
+
+
+def _known_event_collisions(event_date, start_time, end_time, exclude_id=None):
+    if end_time is None:
+        return []
+    requested_start, requested_end = _known_event_datetimes(event_date, start_time, end_time)
+    collisions = []
+    queryset = KnownEvent.objects.select_related('location', 'user').all()
+    if exclude_id is not None:
+        queryset = queryset.exclude(id=exclude_id)
+    for event in queryset:
+        event_start, event_end = _known_event_datetimes(event.date, event.time_start, event.time_end)
+        if event_end is None:
+            overlaps = requested_start <= event_start <= requested_end
+        else:
+            overlaps = event_start < requested_end and event_end > requested_start
+        if overlaps:
+            collisions.append(_serialize_known_event(event))
+    return collisions
+
+
+def _known_event_location(data, existing=None):
+    location_id = data.get('location_id', existing.location_id if existing else None)
+    if location_id in (None, ''):
+        return None
+    location = Location.objects.filter(pk=location_id).first()
+    if location is None:
+        raise ValueError('Selected location does not exist.')
+    return location
+
+
+def _serialize_known_event(event):
+    """Build the known-event API object, including timestamp aliases used by older clients."""
+    start_datetime, end_datetime = _known_event_datetimes(event.date, event.time_start, event.time_end)
+    start_timestamp = start_datetime.timestamp() * 1000
+    end_timestamp = end_datetime.timestamp() * 1000 if end_datetime else None
+    return {
         'id': event.id,
-        'name': event.name,
-        'start_time': event.start_time,
-        'end_time': event.end_time,
+        'date': start_datetime.date().isoformat(),
+        'time_start': start_datetime.time().isoformat(),
+        'time_end': end_datetime.time().isoformat() if end_datetime else None,
+        'time_precision': event.time_precision,
+        'event_type': event.event_type,
+        'size_estimate': event.size_estimate,
+        'distance_from_sensor_m': event.distance_from_sensor_m,
+        'description': event.description,
+        'notes': event.notes,
+        'trust_score': event.trust_score,
         'location_id': event.location_id,
         'location_name': event.location.name if event.location else None,
         'user_id': event.user_id,
         'user_name': event.user.username if event.user else None,
-        'note': event.note,
-        'status': 'success'
-    })
+        'name': event.event_type,
+        'start_time': start_timestamp,
+        'end_time': end_timestamp,
+        'note': event.notes,
+        'duration': max(0, (end_datetime - start_datetime).total_seconds()) if end_datetime else 0,
+    }
 
 
 @csrf_exempt
@@ -810,17 +937,7 @@ def handle_known_event_detail(request, event_id):
         return JsonResponse({'error': 'Event not found'}, status=404)
 
     if request.method == 'GET':
-        return JsonResponse({
-            'id': event.id,
-            'name': event.name,
-            'start_time': event.start_time,
-            'end_time': event.end_time,
-            'note': event.note or '',
-            'location_id': event.location_id,
-            'location_name': event.location.name if event.location else None,
-            'user_id': event.user_id,
-            'user_name': event.user.username if event.user else None
-        })
+        return JsonResponse(_serialize_known_event(event))
 
     elif request.method in ('PUT', 'PATCH', 'POST'):
         try:
@@ -850,30 +967,17 @@ def check_event_collision(request):
         else:
             data = request.GET
 
-        start_time = float(data.get('start_time', 0))
-        end_time = float(data.get('end_time', 0))
-        location_id = data.get('location_id')
+        start_raw = data.get('time_start', data.get('start_time'))
+        end_raw = data.get('time_end', data.get('end_time'))
+        if start_raw is None:
+            raise ValueError('Start time is required.')
+        event_date, start_time, end_time = _parse_known_event_times(start_raw, end_raw, data.get('date'))
         exclude_id = data.get('exclude_id') or data.get('event_id') or data.get('id')
-
-        qs = KnownEvent.objects.filter(start_time__lt=end_time, end_time__gt=start_time)
-        if exclude_id:
-            try:
-                qs = qs.exclude(id=int(exclude_id))
-            except (ValueError, TypeError):
-                pass
-        if location_id and str(location_id) != 'all':
-            qs = qs.filter(location_id=location_id)
-
-        collisions = [
-            {
-                'id': c.id,
-                'name': c.name,
-                'start_time': c.start_time,
-                'end_time': c.end_time,
-                'location_name': c.location.name if c.location else None
-            }
-            for c in qs
-        ]
+        try:
+            exclude_id = int(exclude_id) if exclude_id else None
+        except (ValueError, TypeError):
+            exclude_id = None
+        collisions = _known_event_collisions(event_date, start_time, end_time, exclude_id=exclude_id)
 
         return JsonResponse({
             'has_collision': len(collisions) > 0,

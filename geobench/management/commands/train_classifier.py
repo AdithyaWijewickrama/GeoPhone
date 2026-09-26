@@ -19,14 +19,12 @@ class Command(BaseCommand):
             version=datetime.now().strftime('%Y%m%d%H%M%S') + uuid.uuid4().hex[:6],
             feature_extractor_version=metadata['feature_extractor_version'],
             training_row_count=metadata['row_count'],
-            class_counts=metadata['class_counts'],
+            per_class_counts=metadata['class_counts'],
             held_out_batches=metadata['held_out_day'].split(',') if metadata.get('held_out_day') else None,
-            metrics={
-                metric: {label: values.get(metric, 0) for label, values in per_class.items()}
-                for metric in ('precision', 'recall', 'f1')
-            },
-            model_file=metadata['model_file'],
-            notes=metadata.get('evaluation_note'),
+            precision={label: values.get('precision', 0) for label, values in per_class.items()},
+            recall={label: values.get('recall', 0) for label, values in per_class.items()},
+            f1={label: values.get('f1', 0) for label, values in per_class.items()},
+            model_path=metadata['model_file'],
         )
         self.stdout.write(self.style.SUCCESS(
             f"Trained on {metadata['row_count']} events across {len(metadata['class_counts'])} classes."

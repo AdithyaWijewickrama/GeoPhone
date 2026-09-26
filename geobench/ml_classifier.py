@@ -7,12 +7,13 @@ from datetime import datetime, timezone
 
 import numpy as np
 from django.conf import settings
+from django.db.models import Count
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import precision_recall_fscore_support, accuracy_score
 from sklearn.model_selection import GroupShuffleSplit
 
 from .ml_features import FEATURE_VERSION
-from .models import ClassifierRun
+from .models import ClassifierRun, AnomalyLabel
 
 ARTIFACT_DIR = os.path.join(settings.BASE_DIR, 'ml_artifacts')
 MODEL_PATH = os.path.join(ARTIFACT_DIR, 'event_classifier.pkl')
@@ -79,15 +80,15 @@ def _load_model(model_file):
 
 
 def get_latest_classifier_run():
-    return ClassifierRun.objects.order_by('-trained_at', '-id').first()
+    return ClassifierRun.objects.order_by('-id').first()
 
 
 def suggest_label(features, classifier_run=None):
     classifier_run = classifier_run or get_latest_classifier_run()
-    if not classifier_run or not os.path.exists(classifier_run.model_file):
+    if not classifier_run or not os.path.exists(classifier_run.model_path):
         return None
     try:
-        bundle = _load_model(classifier_run.model_file)
+        bundle = _load_model(classifier_run.model_path)
         vector = [[float(features.get(name, 0)) for name in bundle['features']]]
         probabilities = bundle['model'].predict_proba(vector)[0]
         index = int(np.argmax(probabilities))

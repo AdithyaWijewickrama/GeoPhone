@@ -2,6 +2,8 @@ from django.urls import path
 
 from . import views
 
+
+
 urlpatterns = [
     # Auth endpoints
     path('api/auth/signup/', views.auth_signup, name='auth_signup'),
@@ -14,6 +16,7 @@ urlpatterns = [
     path('api/locations/', views.handle_locations, name='locations'),
     path('api/process-file/', views.process_file_api, name='process_file'),
     path('api/save-label/', views.save_label, name='save_label'),
+    path('api/save-labels-batch/', views.save_labels_batch, name='save_labels_batch'),
     path('api/labels/', views.get_labels_api, name='get_labels'),
     path('api/generate-plot/', views.get_event_plot, name='get_event_plot'),
     path('api/plot-event/', views.get_event_plot, name='plot_event'),

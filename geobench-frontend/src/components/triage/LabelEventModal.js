@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { formatDateTime } from '../../utils';
+import { getWaveformWindow } from '../../utils';
 import { LABEL_OPTIONS, API_BASE_URL } from './constants';
 
 /**
- * Lets the user choose or enter a label and note for selected events and displays collision information.
+ * Lets the user choose or enter a label and note for selected events.
  */
 export default function LabelEventModal({
     show,
     onClose,
     bounds,
-    currentLocation,
     onSave,
     waveform
 }) {
@@ -17,18 +16,21 @@ export default function LabelEventModal({
     const [modalCustomLabel, setModalCustomLabel] = useState('');
     const [modalNote, setModalNote] = useState('');
     const [modalSaveAsKnown, setModalSaveAsKnown] = useState(false);
-    const [modalCollisionWarning, setModalCollisionWarning] = useState(null);
-    const [checkingCollision, setCheckingCollision] = useState(false);
     const [suggestion, setSuggestion] = useState(null);
     const [checkingSuggestion, setCheckingSuggestion] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState(null);
+    const boundsStart = bounds?.minStart;
+    const boundsEnd = bounds?.maxEnd;
 
     useEffect(() => {
-        if (!show || !bounds || !waveform?.times?.length || !waveform?.volts?.length) return;
+        if (!show || boundsStart == null || boundsEnd == null || !waveform?.times?.length || !waveform?.volts?.length) return;
         let active = true;
         setCheckingSuggestion(true);
+        const eventWaveform = getWaveformWindow(waveform.times, waveform.volts, boundsStart, boundsEnd);
         fetch(`${API_BASE_URL}/api/suggest-label/`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ times: waveform.times, volts: waveform.volts, start_time: bounds.minStart, end_time: bounds.maxEnd })
+            body: JSON.stringify({ ...eventWaveform, start_time: boundsStart, end_time: boundsEnd })
         }).then(res => res.json()).then(data => {
             if (!active) return;
             const next = data.suggestion;
@@ -37,67 +39,35 @@ export default function LabelEventModal({
         }).catch(() => { if (active) setSuggestion(null); })
             .finally(() => { if (active) setCheckingSuggestion(false); });
         return () => { active = false; };
-    }, [show, bounds?.minStart, bounds?.maxEnd, waveform?.times, waveform?.volts]);
-
-    // Check collision when opening label modal
-    useEffect(() => {
-        if (!show || !bounds) return;
-
-        let isMounted = true;
-        setCheckingCollision(true);
-        setModalCollisionWarning(null);
-
-        fetch(`${API_BASE_URL}/api/known-events/check-collision/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                start_time: bounds.minStart,
-                end_time: bounds.maxEnd,
-                location_id: currentLocation ? currentLocation.id : null
-            })
-        })
-            .then(res => res.json())
-            .then(data => {
-                if (isMounted) {
-                    if (data.has_collision && data.collisions && data.collisions.length > 0) {
-                        setModalCollisionWarning(data.collisions);
-                    } else {
-                        setModalCollisionWarning(null);
-                    }
-                }
-            })
-            .catch(err => {
-                if (isMounted) console.error("Error checking collision:", err);
-            })
-            .finally(() => {
-                if (isMounted) setCheckingCollision(false);
-            });
-
-        return () => {
-            isMounted = false;
-        };
-    }, [show, bounds, currentLocation]);
+    }, [show, boundsStart, boundsEnd, waveform?.times, waveform?.volts]);
 
     if (!show || !bounds) return null;
 
     /**
-     * Validates the chosen label and passes the final label/note to the parent callback.
+     * Validates the chosen label and saves it through the parent callback.
      */
-    const handleSave = () => {
+    const handleSave = async () => {
         const finalLabel = modalCustomLabel.trim() || modalLabel;
         if (!finalLabel) {
             return alert("Please select or type a label name.");
         }
-        onSave({
-            finalLabel,
-            note: modalNote,
-            saveAsKnown: modalSaveAsKnown,
-            bounds
-        });
-        setModalCustomLabel('');
-        setModalNote('');
-        setModalSaveAsKnown(false);
-        setModalCollisionWarning(null);
+        setSaving(true);
+        setSaveError(null);
+        try {
+            await onSave({
+                finalLabel,
+                note: modalNote,
+                saveAsKnown: modalSaveAsKnown,
+                bounds
+            });
+            setModalCustomLabel('');
+            setModalNote('');
+            setModalSaveAsKnown(false);
+        } catch (err) {
+            setSaveError(err.message || 'Failed to save label. Please try again.');
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
@@ -180,32 +150,18 @@ export default function LabelEventModal({
                             </label>
                         </div>
 
-                        {/* Collision Warning Display */}
-                        {checkingCollision && (
-                            <div className="text-muted small mb-2">Checking time collision...</div>
-                        )}
-                        {modalCollisionWarning && modalCollisionWarning.length > 0 && (
-                            <div className="alert alert-warning py-2 small mb-3">
-                                <strong>⚠️ Collision Warning:</strong>
-                                <p className="mb-1">
-                                    This time duration collides with {modalCollisionWarning.length} existing known event(s):
-                                </p>
-                                <ul className="mb-1">
-                                    {modalCollisionWarning.map((c, i) => (
-                                        <li key={i}>
-                                            <strong>{c.name}</strong> ({formatDateTime(c.start_time)} - {formatDateTime(c.end_time)})
-                                        </li>
-                                    ))}
-                                </ul>
-                                <small className="text-muted">You may still proceed to save the label.</small>
+                        {saveError && (
+                            <div className="alert alert-danger py-2 small" role="alert">
+                                {saveError}
                             </div>
                         )}
 
                         <button
                             className="btn btn-warning w-100 fw-bold"
                             onClick={handleSave}
+                            disabled={saving}
                         >
-                            Save Label {modalSaveAsKnown ? '& Known Event' : ''}
+                            {saving ? 'Saving...' : `Save Label ${modalSaveAsKnown ? '& Known Event' : ''}`}
                         </button>
                     </div>
                 </div>

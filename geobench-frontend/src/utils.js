@@ -30,6 +30,29 @@ export const mergeEvents = (blocks, threshold) => {
     return events;
 };
 
+/** Returns only the waveform samples within a timestamp interval. */
+export const getWaveformWindow = (times = [], volts = [], startTime, endTime) => {
+    const count = Math.min(times.length, volts.length);
+    let low = 0;
+    let high = count;
+    while (low < high) {
+        const mid = (low + high) >> 1;
+        if (Number(times[mid]) < startTime) low = mid + 1;
+        else high = mid;
+    }
+    const startIndex = low;
+    high = count;
+    while (low < high) {
+        const mid = (low + high) >> 1;
+        if (Number(times[mid]) <= endTime) low = mid + 1;
+        else high = mid;
+    }
+    return {
+        times: times.slice(startIndex, low),
+        volts: volts.slice(startIndex, low)
+    };
+};
+
 /** Formats a time value as a clock time, interpreting large numeric values as epoch milliseconds. */
 export const formatTime = (ms) => {
     if (ms === null || ms === undefined || ms === '') return '';

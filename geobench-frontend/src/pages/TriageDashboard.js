@@ -1,11 +1,11 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { useAuth } from '../context/AuthContext';
+import React, {useEffect, useRef, useState, useCallback} from 'react';
+import {useAuth} from '../context/AuthContext';
 import {
     formatDateTime,
     mergeEvents,
     getFileDateMs
 } from '../utils';
-import { DEFAULT_THRESHOLD, API_BASE_URL } from '../components/triage/constants';
+import {DEFAULT_THRESHOLD, API_BASE_URL} from '../components/triage/constants';
 import TriageHeader from '../components/triage/TriageHeader';
 import RawFilesList from '../components/triage/RawFilesList';
 import KnownEventsList from '../components/triage/KnownEventsList';
@@ -16,19 +16,19 @@ import ChunkDetail from '../components/triage/ChunkDetail';
  * Coordinates raw file selection, chunk scanning, event labeling, known events, and triage display state.
  */
 export default function TriageDashboard({
-    rawFiles = [],
-    setRawFiles,
-    selectedKey,
-    setSelectedKey,
-    labels = {},
-    setLabels,
-    currentLocation,
-    locations = [],
-    onOpenLocationModal,
-    onLocationCreated,
-    onSelectLocation
-}) {
-    const { user } = useAuth();
+                                            rawFiles = [],
+                                            setRawFiles,
+                                            selectedKey,
+                                            setSelectedKey,
+                                            labels = {},
+                                            setLabels,
+                                            currentLocation,
+                                            locations = [],
+                                            onOpenLocationModal,
+                                            onLocationCreated,
+                                            onSelectLocation
+                                        }) {
+    const {user} = useAuth();
     const [scanning, setScanning] = useState(false);
     const [knownEvents, setKnownEvents] = useState([]);
     const [loadingEvents, setLoadingEvents] = useState(false);
@@ -42,6 +42,7 @@ export default function TriageDashboard({
 
     // List 2 (Known Events) state
     const [selectedKnownEventId, setSelectedKnownEventId] = useState(null);
+    const selectedKnownEvent = knownEvents.find(event => event.id === selectedKnownEventId) || null;
 
     // Active Dataset loaded in detail panel
     const [activeChunkData, setActiveChunkData] = useState(null);
@@ -112,6 +113,7 @@ export default function TriageDashboard({
         const sorted = [...files].sort((a, b) => getFileDateMs(a) - getFileDateMs(b));
         setRawFiles(sorted);
         setSelectedRawIndices(new Set());
+        setSelectedKnownEventId(null);
         setActiveChunkData(null);
         e.target.value = '';
 
@@ -194,7 +196,7 @@ export default function TriageDashboard({
             }
 
             if (data.existing_labels) {
-                setLabels(prev => ({ ...prev, ...data.existing_labels }));
+                setLabels(prev => ({...prev, ...data.existing_labels}));
             }
 
             const events = mergeEvents(data.blocks, DEFAULT_THRESHOLD).map(event => ({
@@ -233,6 +235,7 @@ export default function TriageDashboard({
      */
     const runFullScan = async () => {
         if (!rawFiles || !rawFiles.length) return;
+        setSelectedKnownEventId(null);
         setScanning(true);
         const name = `Full Dataset (${rawFiles.length} files)`;
         const scanned = await scanFilesAsChunk(rawFiles, name);
@@ -276,6 +279,7 @@ export default function TriageDashboard({
      */
     const handleAnalyzeRawSelection = async () => {
         if (!rawSelectionInfo) return;
+        setSelectedKnownEventId(null);
         setAnalyzingSelection(true);
 
         const customName = `Custom Selection: ${rawSelectionInfo.dtStr} (${rawSelectionInfo.count} files, ${rawSelectionInfo.durationSec}s)`;
@@ -295,10 +299,9 @@ export default function TriageDashboard({
      */
     const handleSelectKnownEvent = async (event) => {
         if (!event) return;
-        setSelectedKnownEventId(event.id);
 
-        const startMs = event.start_time || event.startTime || 0;
-        const endMs = event.end_time || event.endTime || (startMs + 10000);
+        const startMs = event.start_time ?? event.startTime ?? 0;
+        const endMs = event.end_time ?? event.endTime ?? (startMs + 10000);
         const d = new Date(startMs);
         const year = d.getFullYear() < 2000 ? 2026 : d.getFullYear();
         const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -324,38 +327,73 @@ export default function TriageDashboard({
         });
 
         if (matchingIndices.size > 0) {
+            setSelectedKnownEventId(event.id);
             setSelectedRawIndices(matchingIndices);
             const selectedFiles = Array.from(matchingIndices).map(i => rawFiles[i]);
             setAnalyzingSelection(true);
-            const customName = `📌 Known Event: ${event.name} (${formatDateTime(startMs)})`;
+            const customName = `📌 ${event.event_type || event.name} | trust ${event.trust_score ?? 100}/100 (${formatDateTime(startMs)})`;
             const scanned = await scanFilesAsChunk(selectedFiles, customName);
+            if (scanned?.raw) {
+                scanned.focusStartTime = startMs;
+                scanned.focusEndTime = endMs;
+            }
             setActiveChunkData(scanned);
             if (setSelectedKey && scanned?.key) {
                 setSelectedKey(scanned.key);
             }
             setAnalyzingSelection(false);
         } else {
+            setSelectedKnownEventId(null);
             setSelectedRawIndices(new Set());
+            setActiveChunkData(null);
         }
     };
 
     // Save label callback
+    const handleSaveLabelsBatch = async (chunkName, events) => {
+        const response = await fetch(`${API_BASE_URL}/api/save-labels-batch/`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                location_id: currentLocation ? currentLocation.id : null,
+                user_id: user ? user.id : null,
+                events: events.map(({event, label, note, waveform}) => ({
+                    file: chunkName,
+                    startTime: event.startTime,
+                    endTime: event.endTime,
+                    duration: (event.endTime - event.startTime) / 1000,
+                    peakScore: event.peakScore,
+                    label, note,
+                    suggested_label: event.suggested_label || null,
+                    suggested_confidence: event.suggested_confidence ?? null,
+                    suggested_by_id: event.classifier_run_id ?? null,
+                    times: waveform?.times,
+                    volts: waveform?.volts
+                }))
+            })
+        });
+        const result = await response.json();
+        if (!response.ok || result.error) {
+            throw new Error(result.error || 'The labels could not be saved to the database.');
+        }
+        setLabels(prev => {
+            const next = {...prev};
+            events.forEach(({event, label, note}) => {
+                const key = `${chunkName}_${Math.round(event.startTime)}_${Math.round(event.endTime)}`;
+                if (!label && !note) delete next[key]; else next[key] = {label, note};
+            });
+            return next;
+        });
+    };
     /**
      * Saves or clears an event label and optionally creates a known event.
      */
     const handleSaveLabel = async (chunkKey, chunkName, event, label, note, saveAsKnownEvent = false, waveform = null) => {
         const labelKey = `${chunkName}_${Math.round(event.startTime)}_${Math.round(event.endTime)}`;
 
-        setLabels(prev => {
-            const newLabels = { ...prev };
-            if (!label && !note) delete newLabels[labelKey];
-            else newLabels[labelKey] = { label, note };
-            return newLabels;
-        });
-
-        await fetch(`${API_BASE_URL}/api/save-label/`, {
+        const response = await fetch(`${API_BASE_URL}/api/save-label/`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 file: chunkName,
                 startTime: event.startTime,
@@ -374,6 +412,17 @@ export default function TriageDashboard({
                 volts: waveform?.volts
             })
         });
+        const result = await response.json();
+        if (!response.ok || result.error || !['success', 'cleared'].includes(result.status)) {
+            throw new Error(result.error || 'The label could not be saved to the database.');
+        }
+
+        setLabels(prev => {
+            const newLabels = {...prev};
+            if (!label && !note) delete newLabels[labelKey];
+            else newLabels[labelKey] = {label, note};
+            return newLabels;
+        });
 
         if (saveAsKnownEvent) {
             await fetchKnownEvents();
@@ -386,7 +435,13 @@ export default function TriageDashboard({
     const handleClearAll = () => {
         setRawFiles([]);
         setSelectedRawIndices(new Set());
+        setSelectedKnownEventId(null);
         setActiveChunkData(null);
+    };
+
+    const handleRawSelectionChange = (selection) => {
+        setSelectedKnownEventId(null);
+        setSelectedRawIndices(selection);
     };
 
     /**
@@ -411,20 +466,30 @@ export default function TriageDashboard({
                 scanning={scanning}
                 fileCount={rawFiles.length}
                 onClear={handleClearAll}
+                knownEventSelected={Boolean(selectedKnownEventId)}
             />
 
             {/* Main Content Layout */}
             <div className="container-fluid flex-grow-1 d-flex p-0">
                 <div className="row g-0 w-100">
                     {/* Sidebar: List 1 (Raw Files) and List 2 (Known Events) */}
-                    <div className="col-md-5 col-lg-4 border-end border-secondary bg-dark d-flex flex-column" style={{ maxHeight: 'calc(100vh - 75px)', overflowY: 'auto' }}>
+                    <div
+                        className="col-md-5 col-lg-4 border-end border-secondary bg-dark d-flex flex-column"
+                        style={{
+                            maxHeight: 'calc(100vh - 75px)',
+                            overflowY: 'auto',
+                            opacity: analyzingSelection ? 0.6 : 1
+                        }}
+                        inert={analyzingSelection}
+                        aria-busy={analyzingSelection}
+                    >
                         {/* List 1: Raw Files Panel with Days, Hours, and Minutes */}
                         <RawFilesList
                             rawFiles={rawFiles}
                             showList1={showList1}
                             setShowList1={setShowList1}
                             selectedRawIndices={selectedRawIndices}
-                            setSelectedRawIndices={setSelectedRawIndices}
+                            setSelectedRawIndices={handleRawSelectionChange}
                             rawSelectionInfo={rawSelectionInfo}
                             analyzingSelection={analyzingSelection}
                             onAnalyzeRawSelection={handleAnalyzeRawSelection}
@@ -458,12 +523,14 @@ export default function TriageDashboard({
                     </div>
 
                     {/* Detail Panel: Waveform & Flagged Events */}
-                    <div className="col-md-7 col-lg-8 p-3 overflow-auto" style={{ maxHeight: 'calc(100vh - 75px)' }}>
+                    <div className="col-md-7 col-lg-8 p-3 overflow-auto position-relative"
+                         style={{maxHeight: 'calc(100vh - 75px)'}}>
                         {!activeChunkData ? (
                             <div className="text-center text-muted mt-5 py-5">
                                 <h3>No dataset or files selected</h3>
                                 <p className="lead">
-                                    Select files from <strong>List 1</strong> or click a known event from <strong>List 2</strong> to inspect and analyze the signal waveform.
+                                    Select files from <strong>List 1</strong> or click a known event from <strong>List
+                                    2</strong> to inspect and analyze the signal waveform.
                                 </p>
                                 {rawFiles.length > 0 && (
                                     <button
@@ -491,12 +558,26 @@ export default function TriageDashboard({
                             <ChunkDetail
                                 key={activeChunkData.key || activeChunkData.name || 'active-chunk'}
                                 chunk={activeChunkData}
+                                knownEvent={selectedKnownEvent}
                                 labels={labels}
                                 onSaveLabel={handleSaveLabel}
+                                onSaveLabelsBatch={handleSaveLabelsBatch}
                                 setLabels={setLabels}
                                 currentLocation={currentLocation}
                                 onRefreshKnownEvents={handleEventCreated}
                             />
+                        )}
+                        {analyzingSelection && (
+                            <div
+                                className="position-absolute top-0 start-0 w-100 h-100 d-flex flex-column justify-content-center align-items-center bg-dark bg-opacity-75"
+                                role="status"
+                                aria-live="polite"
+                                style={{zIndex: 5, minHeight: '240px'}}
+                            >
+                                <div className="spinner-border text-info mb-3" aria-hidden="true"/>
+                                <strong className="text-info">Analyzing selected data…</strong>
+                                <span className="text-light small mt-1">The chart will appear when processing is complete.</span>
+                            </div>
                         )}
                     </div>
                 </div>

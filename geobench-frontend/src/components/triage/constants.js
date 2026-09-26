@@ -7,13 +7,13 @@ export const LABEL_OPTIONS = [
     'Equipment / machinery',
     'Sensor artifact',
     'False positive',
+    'Natural Rockfall',
+    'Block Removal',
+    'Residual Scaling',
+    'Crew Activity',
+    'Sluicing',
+    'Sensor Status',
     'Unknown',
-    'natural_rockfall',
-    'block_removal',
-    'residual_scaling',
-    'crew_activity',
-    'sluicing',
-    'sensor_status'
 ];
 
 export const DEFAULT_THRESHOLD = 5;
