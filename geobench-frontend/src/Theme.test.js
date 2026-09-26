@@ -12,6 +12,7 @@ describe('Theme Context and Look and Feel Changer', () => {
     });
 
     test('defaults to "current" theme and sets data-theme attribute', () => {
+        /** Reads and renders theme context values for provider assertions. */
         function TestConsumer() {
             const { theme } = useTheme();
             return <div data-testid="current-theme">{theme}</div>;
@@ -31,6 +32,7 @@ describe('Theme Context and Look and Feel Changer', () => {
     test('loads previously saved theme from localStorage', () => {
         localStorage.setItem('geophone_theme', 'modern-dark');
 
+        /** Reads and renders theme context values for provider assertions. */
         function TestConsumer() {
             const { theme } = useTheme();
             return <div data-testid="current-theme">{theme}</div>;

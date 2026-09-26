@@ -4,6 +4,9 @@ import { formatDateTime } from '../utils';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL || 'http://127.0.0.1:8000';
 
+/**
+ * Fetches and displays saved labels, with location and user filtering.
+ */
 export default function LabeledData({ currentLocation, locations }) {
     const { user } = useAuth();
     const [labels, setLabels] = useState([]);
@@ -19,6 +22,9 @@ export default function LabeledData({ currentLocation, locations }) {
         }
     }, [currentLocation]);
 
+    /**
+     * Requests saved labels using the current location/filter parameters.
+     */
     const fetchLabels = useCallback(() => {
         setLoading(true);
         const params = new URLSearchParams();

@@ -4,6 +4,8 @@ import { BrowserRouter as Router } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import TriageDashboard from './pages/TriageDashboard';
+import TriageHeader from './components/triage/TriageHeader';
+import { classifyKnn } from './pages/Forecasting';
 import LocationModal from './components/LocationModal';
 import LabeledData from './pages/LabeledData';
 import Login from './pages/Login';
@@ -11,13 +13,15 @@ import Signup from './pages/Signup';
 import GoogleAuthButton from './components/GoogleAuthButton';
 import ChunkDetail from './components/triage/ChunkDetail';
 import DefineEventModal from './components/triage/DefineEventModal';
+import LabelEventModal from './components/triage/LabelEventModal';
 import WaveformChart from './components/triage/WaveformChart';
 import FlaggedEventsTable from './components/triage/FlaggedEventsTable';
 import RawFilesList from './components/triage/RawFilesList';
 import KnownEventsList from './components/triage/KnownEventsList';
 import SpectrogramModal from './components/triage/SpectrogramModal';
-import { formatDateTime, toDatetimeLocalString, parseFilenameDate, getFileDateMs } from './utils';
+import { formatDateTime, toDatetimeLocalString, parseFilenameDate, getFileDateMs, getWaveformWindow } from './utils';
 
+/** Renders dashboard UI inside the router, authentication, and theme providers. */
 const renderWithProviders = (ui) => {
     return render(
         <ThemeProvider>
@@ -218,6 +222,19 @@ describe('TriageDashboard Main Component & Interactions', () => {
         fireEvent.mouseDown(fileItem.closest('.selectable-item'), { button: 0 });
         expect(screen.queryByText('1 selected')).not.toBeInTheDocument();
     });
+
+    test('locks import and clear controls after selecting a known event', async () => {
+        renderWithProviders(<TriageDashboard {...mockProps} />);
+
+        const selectEvent = await screen.findByText('Select in List 1 ➔');
+        fireEvent.click(selectEvent.closest('.card'));
+
+        await waitFor(() => {
+            expect(screen.getByTitle('Import CSV Files')).toBeDisabled();
+            expect(screen.getByTitle('Import Entire Folder')).toBeDisabled();
+            expect(screen.getByTitle(/Exit the known-event selection/)).toBeDisabled();
+        });
+    });
 });
 
 describe('KnownEventsList Component (List 2)', () => {
@@ -340,6 +357,31 @@ describe('ChunkDetail Component', () => {
         expect(screen.getAllByText(/View Plot/i).length).toBeGreaterThan(0);
     });
 
+    test('shows selected known-event details above chart analysis', () => {
+        renderWithProviders(
+            <ChunkDetail
+                chunk={mockChunk}
+                knownEvent={{
+                    name: 'Footsteps',
+                    start_time: mockChunk.startTime,
+                    end_time: mockChunk.startTime + 10000,
+                    duration: 10,
+                    trust_score: 82,
+                    note: 'Near the north sensor'
+                }}
+                labels={{}}
+                onSaveLabel={jest.fn()}
+                setLabels={jest.fn()}
+                currentLocation={null}
+            />
+        );
+
+        expect(screen.getByLabelText('Selected known event details')).toBeInTheDocument();
+        expect(screen.getByText('Footsteps')).toBeInTheDocument();
+        expect(screen.getByText('Trust 82/100')).toBeInTheDocument();
+        expect(screen.getByText('Near the north sensor')).toBeInTheDocument();
+    });
+
     test('displays analysis failed message for corrupted chunk', () => {
         renderWithProviders(
             <ChunkDetail
@@ -354,6 +396,29 @@ describe('ChunkDetail Component', () => {
 
         expect(screen.getByText('Analysis Failed')).toBeInTheDocument();
         expect(screen.getByText('• Corrupted headers')).toBeInTheDocument();
+    });
+});
+
+describe('TriageHeader known-event selection lock', () => {
+    test('disables import, scan-all, and clear controls while a known event is selected', () => {
+        render(
+            <TriageHeader
+                onOpenDefineModal={jest.fn()}
+                onFilesSelected={jest.fn()}
+                fileInputRef={{ current: null }}
+                folderInputRef={{ current: null }}
+                onScanAll={jest.fn()}
+                scanning={false}
+                fileCount={2}
+                onClear={jest.fn()}
+                knownEventSelected
+            />
+        );
+
+        expect(screen.getByTitle('Import CSV Files')).toBeDisabled();
+        expect(screen.getByTitle('Import Entire Folder')).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Scan All' })).toBeDisabled();
+        expect(screen.getByTitle(/Exit the known-event selection/)).toBeDisabled();
     });
 });
 
@@ -472,6 +537,77 @@ describe('FlaggedEventsTable Component', () => {
         fireEvent.click(resetBtn);
         expect(onResetMock).toHaveBeenCalled();
     });
+
+    test('loads saved labels using the chunk name and rounded event timestamps', () => {
+        const event = mockEvents[0];
+        renderWithProviders(
+            <FlaggedEventsTable
+                currentEvents={[event]}
+                chunk={{ key: 'scanned_1', name: 'chunk1' }}
+                labels={{ [`chunk1_${Math.round(event.startTime)}_${Math.round(event.endTime)}`]: { label: 'Vehicle' } }}
+                onSaveLabel={jest.fn()}
+                setLabels={jest.fn()}
+                selectedTableEvents={new Set()}
+                setSelectedTableEvents={jest.fn()}
+            />
+        );
+
+        expect(screen.getByDisplayValue('Vehicle')).toBeInTheDocument();
+    });
+});
+
+describe('LabelEventModal persistence', () => {
+    const bounds = {
+        count: 1,
+        minStart: 1727172000000,
+        maxEnd: 1727172010000,
+        startFormatted: '2024-09-24 10:00:00',
+        endFormatted: '2024-09-24 10:00:10',
+        durationFormatted: '10s',
+        events: []
+    };
+
+    test('saves the chosen label without checking for collisions', async () => {
+        const onSave = jest.fn().mockResolvedValue(undefined);
+        render(
+            <LabelEventModal
+                show
+                onClose={jest.fn()}
+                bounds={bounds}
+                onSave={onSave}
+                waveform={{ times: [], volts: [] }}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Save Label' }));
+
+        await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+            finalLabel: expect.any(String),
+            bounds
+        })));
+        expect(global.fetch).not.toHaveBeenCalledWith(
+            expect.stringContaining('/api/known-events/check-collision/'),
+            expect.anything()
+        );
+    });
+
+    test('keeps the modal open and displays database save errors', async () => {
+        const onSave = jest.fn().mockRejectedValue(new Error('Database unavailable'));
+        render(
+            <LabelEventModal
+                show
+                onClose={jest.fn()}
+                bounds={bounds}
+                onSave={onSave}
+                waveform={{ times: [], volts: [] }}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Save Label' }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('Database unavailable');
+        expect(screen.getByRole('button', { name: 'Save Label' })).toBeInTheDocument();
+    });
 });
 
 describe('WaveformChart Component', () => {
@@ -526,6 +662,21 @@ describe('WaveformChart Component', () => {
         expect(screen.getByTitle('Reset Zoom to 100%')).toBeInTheDocument();
         expect(screen.getByTitle('Pan Left (Shift view earlier)')).toBeInTheDocument();
         expect(screen.getByTitle('Pan Right (Shift view later)')).toBeInTheDocument();
+    });
+
+    test('focuses the analyzed range on selected known-event timestamps', () => {
+        const focusStartTime = mockChunk.startTime + 2000;
+        const focusEndTime = mockChunk.startTime + 4000;
+        renderWithProviders(
+            <WaveformChart
+                chunk={{ ...mockChunk, focusStartTime, focusEndTime }}
+                threshold={5}
+                setThreshold={jest.fn()}
+            />
+        );
+
+        expect(screen.getByText(formatDateTime(focusStartTime))).toBeInTheDocument();
+        expect(screen.getByText(formatDateTime(focusEndTime))).toBeInTheDocument();
     });
 });
 
@@ -716,6 +867,18 @@ describe('RawFilesList Days, Hours & Minutes Layout', () => {
 });
 
 describe('Timestamp Parsing & Formatting (2026 Dates)', () => {
+    test('extracts only waveform samples inside the requested interval', () => {
+        expect(getWaveformWindow(
+            [1000, 2000, 3000, 4000, 5000],
+            [10, 20, 30, 40, 50],
+            2000,
+            4000
+        )).toEqual({
+            times: [2000, 3000, 4000],
+            volts: [20, 30, 40]
+        });
+    });
+
     test('parseFilenameDate extracts correct 2026 dates from various filename patterns', () => {
         const d1 = parseFilenameDate('geophone_2026-07-29_21-58-26.csv');
         expect(d1.getFullYear()).toBe(2026);
@@ -742,5 +905,30 @@ describe('Timestamp Parsing & Formatting (2026 Dates)', () => {
 
         const localStr = toDatetimeLocalString(epochMs2026);
         expect(localStr).toMatch(/^2026-/);
+    });
+});
+
+describe('Forecasting KNN classifier', () => {
+    test('predicts a label from the majority class among normalized nearest neighbors', () => {
+        const result = classifyKnn([
+            { label: 'Footstep', duration: 1, peakScore: 4 },
+            { label: 'Footstep', duration: 2, peakScore: 5 },
+            { label: 'Vehicle', duration: 9, peakScore: 10 }
+        ], 1.5, 4.5, 3);
+
+        expect(result.label).toBe('Footstep');
+        expect(result.k).toBe(3);
+        expect(result.confidence).toBeCloseTo(2 / 3);
+        expect(result.neighbors).toHaveLength(3);
+    });
+
+    test('limits K to the available labeled samples', () => {
+        const result = classifyKnn([
+            { label: 'Rockfall', duration: 3, peakScore: 8 }
+        ], 3, 8, 5);
+
+        expect(result.label).toBe('Rockfall');
+        expect(result.k).toBe(1);
+        expect(result.confidence).toBe(1);
     });
 });

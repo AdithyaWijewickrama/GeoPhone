@@ -1,11 +1,17 @@
 import React from 'react';
 
+/**
+ * Displays an event plot/spectrogram in a modal.
+ */
 export default function SpectrogramModal({
     plotModal,
     onClose
 }) {
     if (!plotModal || !plotModal.visible) return null;
 
+    /**
+     * Downloads the displayed plot image.
+     */
     const handleDownload = () => {
         if (!plotModal.image) return;
         const link = document.createElement('a');

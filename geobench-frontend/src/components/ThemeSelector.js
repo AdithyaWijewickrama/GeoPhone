@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTheme } from '../context/ThemeContext';
 
+/**
+ * Renders the theme picker and closes its menu when a click occurs outside it.
+ */
 export default function ThemeSelector() {
     const { theme, setTheme, themes } = useTheme();
     const [isOpen, setIsOpen] = useState(false);
@@ -10,6 +13,9 @@ export default function ThemeSelector() {
 
     // Close dropdown on outside click
     useEffect(() => {
+        /**
+         * Detects clicks outside the theme menu and closes it.
+         */
         const handleClickOutside = (event) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
                 setIsOpen(false);

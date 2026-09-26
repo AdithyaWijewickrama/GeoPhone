@@ -11,6 +11,50 @@ import matplotlib.pyplot as plt
 from scipy import signal
 
 
+def _attach_block_suggestions(times, volts, blocks):
+    """Attach latest-run predictions to detected blocks when a model is available."""
+    if not blocks:
+        return blocks
+    from .ml_classifier import get_latest_classifier_run, suggest_label
+    from .ml_features import extract_event_features
+
+    classifier_run = get_latest_classifier_run()
+    if not classifier_run:
+        return blocks
+    times = np.asarray(times, dtype=float)
+    volts = np.asarray(volts, dtype=float)
+    def annotate_group(group):
+        if not group:
+            return
+        start_idx = max(0, int(group[0]['s']))
+        end_idx = min(len(times), int(group[-1]['e']) + 1)
+        try:
+            features = extract_event_features(times[start_idx:end_idx], volts[start_idx:end_idx])
+            prediction = suggest_label(features, classifier_run)
+        except (ValueError, TypeError):
+            prediction = None
+        if prediction:
+            suggestion = {
+                'suggested_label': prediction['category'],
+                'suggested_confidence': prediction['confidence'],
+                'classifier_run_id': prediction['classifier_run_id'],
+            }
+            for item in group:
+                item.update(suggestion)
+
+    # Match the frontend's default event grouping so blocks in one merged
+    # event carry the same interval-level suggestion; skip background blocks.
+    group = []
+    for block in blocks:
+        if float(block.get('score', 0)) >= 5:
+            group.append(block)
+        else:
+            annotate_group(group)
+            group = []
+    annotate_group(group)
+    return blocks
+
+
 def parse_filename_datetime(filename):
     """Extracts a datetime from a filename pattern (e.g. 2026-07-29_21-58-26.csv or epoch timestamp)."""
     if not filename:
@@ -95,6 +139,7 @@ def parse_timestamp_series(series, filename=None):
 
 
 def calculate_robust_z(series):
+    """Calculates a nonnegative robust deviation score using the median and median absolute deviation."""
     median = series.median()
     mad = (series - median).abs().median()
     mad = mad if mad > 1e-9 else 1e-6
@@ -102,6 +147,7 @@ def calculate_robust_z(series):
 
 
 def process_geophone_csv(file_obj, filename=None):
+    """Reads one CSV's timestamp and voltage columns, normalizes timestamps, calculates rolling anomaly features/scores, and returns samples, detected blocks, and timing statistics. Errors are returned as `{ok: False, reason: ...}`."""
     try:
         fname = filename or getattr(file_obj, 'name', None)
         df = pd.read_csv(file_obj, usecols=['timestamp', 'voltage'])
@@ -144,6 +190,8 @@ def process_geophone_csv(file_obj, filename=None):
                 'time': float(times_ms.iloc[i]),
                 'score': float(row['score'])
             })
+
+        _attach_block_suggestions(times_ms.tolist(), df['voltage'].tolist(), blocks)
 
         return {
             'ok': True,
@@ -293,6 +341,7 @@ def generate_event_plot_from_data(times_input, volts_input, event_start_ms=None,
 
 
 def generate_event_plot(file_objs, event_start_ms, event_end_ms):
+    """Reads and combines readable CSV files, sorts their samples, then delegates plotting to `generate_event_plot_from_data()`."""
     try:
         # 1. Parse and stitch multiple files into a single continuous dataframe
         dataframes = []
@@ -389,6 +438,8 @@ def process_geophone_chunk(file_objs, filenames):
     for i, row in df_blocks.iterrows():
         blocks.append(
             {'s': max(0, i - win_size), 'e': i, 'time': float(times_ms.iloc[i]), 'score': float(row['score'])})
+
+    _attach_block_suggestions(times_ms.tolist(), master_df['voltage'].tolist(), blocks)
 
     return {
         'ok': True,

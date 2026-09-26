@@ -4,6 +4,9 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_API_
 
 export const AuthContext = createContext();
 
+/**
+ * Provides authentication state and login, signup, Google login, and logout actions; it restores/checks the current session when mounted.
+ */
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(() => {
         try {
@@ -41,6 +44,9 @@ export function AuthProvider({ children }) {
             });
     }, []);
 
+    /**
+     * Sends credentials to the backend, updates the stored user on success, and reports failure.
+     */
     const login = async (username, password) => {
         const res = await fetch(`${API_BASE_URL}/api/auth/login/`, {
             method: 'POST',
@@ -56,6 +62,9 @@ export function AuthProvider({ children }) {
         return data.user;
     };
 
+    /**
+     * Sends registration data and updates authentication state from the backend response.
+     */
     const signup = async ({ username, email, password, first_name, last_name }) => {
         const res = await fetch(`${API_BASE_URL}/api/auth/signup/`, {
             method: 'POST',
@@ -71,6 +80,9 @@ export function AuthProvider({ children }) {
         return data.user;
     };
 
+    /**
+     * Exchanges Google identity data with the backend and updates the signed-in user.
+     */
     const loginWithGoogle = async (googleData) => {
         const res = await fetch(`${API_BASE_URL}/api/auth/google/`, {
             method: 'POST',
@@ -86,6 +98,9 @@ export function AuthProvider({ children }) {
         return data.user;
     };
 
+    /**
+     * Ends the backend session and clears local user state/storage.
+     */
     const logout = async () => {
         try {
             await fetch(`${API_BASE_URL}/api/auth/logout/`, { method: 'POST' });
@@ -111,6 +126,9 @@ export function AuthProvider({ children }) {
     );
 }
 
+/**
+ * Returns the authentication context and throws when used outside `AuthProvider`.
+ */
 export function useAuth() {
     const context = useContext(AuthContext);
     if (!context) {

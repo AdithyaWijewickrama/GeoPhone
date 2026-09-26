@@ -3,6 +3,9 @@ import { useAuth } from '../context/AuthContext';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL || 'http://127.0.0.1:8000';
 
+/**
+ * Displays available locations and the create/select location interface.
+ */
 export default function LocationModal({
     show,
     onClose,
@@ -50,6 +53,9 @@ export default function LocationModal({
 
     if (!show) return null;
 
+    /**
+     * Validates and submits a new location, then updates parent state or reports an error.
+     */
     const handleCreateLocation = async (e) => {
         e.preventDefault();
         if (!name.trim()) {
@@ -98,6 +104,9 @@ export default function LocationModal({
         }
     };
 
+    /**
+     * Selects a location and invokes the optional continuation callback.
+     */
     const handleSelect = (loc) => {
         onSelectLocation(loc);
         if (onProceedToFileSelection) {

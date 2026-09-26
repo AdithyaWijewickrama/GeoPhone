@@ -3,6 +3,9 @@ import { formatDateTime, getFileDateMs } from '../../utils';
 
 const ROWS_PER_PAGE = 1000;
 
+/**
+ * Displays uploaded files grouped by date/hour/minute and manages time-based file selection.
+ */
 export default function RawFilesList({
     rawFiles = [],
     showList1 = true,
@@ -42,11 +45,14 @@ export default function RawFilesList({
     const setCurrentMinute = setActiveMinute || setLocalMinute;
 
     // Helper: Find known events overlapping with a time range [startMs, endMs]
+    /**
+     * Finds known events overlapping the supplied interval.
+     */
     const getEventsInRange = (startMs, endMs) => {
         if (!knownEvents || knownEvents.length === 0) return [];
         return knownEvents.filter(ev => {
-            const evStart = ev.start_time || ev.startTime || 0;
-            const evEnd = ev.end_time || ev.endTime || (evStart + 10000);
+            const evStart = ev.start_time ?? ev.startTime ?? 0;
+            const evEnd = ev.end_time ?? ev.endTime ?? (evStart + 10000);
             return Math.max(startMs, evStart) <= Math.min(endMs, evEnd);
         });
     };
@@ -167,6 +173,9 @@ export default function RawFilesList({
     const totalRawPages = Math.ceil(rawFiles.length / ROWS_PER_PAGE);
     const displayedRawFiles = rawFiles.slice(rawPage * ROWS_PER_PAGE, (rawPage + 1) * ROWS_PER_PAGE);
 
+    /**
+     * Selects a requested number of raw files.
+     */
     const handleSelectRawRange = (count) => {
         setSelectedRawIndices(prev => {
             const next = new Set(prev);
@@ -178,6 +187,9 @@ export default function RawFilesList({
         });
     };
 
+    /**
+     * Activates a day and selects an initial available hour/minute group.
+     */
     const handleDayClick = (dayObj) => {
         setCurrentDay(dayObj.day);
         const hours = Object.keys(dayObj.hoursMap).sort((a, b) => b.localeCompare(a));
@@ -190,6 +202,9 @@ export default function RawFilesList({
         }
     };
 
+    /**
+     * Activates an hour and selects its first available minute group.
+     */
     const handleHourClick = (hourObj, e) => {
         if (e && e.stopPropagation) e.stopPropagation();
         setCurrentHour(hourObj.hour);
@@ -199,6 +214,9 @@ export default function RawFilesList({
         }
     };
 
+    /**
+     * Selects or clears every file in an hour group.
+     */
     const handleSelectHourFiles = (hourObj, e) => {
         if (e && e.stopPropagation) e.stopPropagation();
         const indices = hourObj.fileIndices;
@@ -214,6 +232,9 @@ export default function RawFilesList({
         });
     };
 
+    /**
+     * Activates a minute group and updates selection according to click modifiers.
+     */
     const handleMinuteClick = (minObj, e) => {
         if (e && e.stopPropagation) e.stopPropagation();
         setCurrentMinute(minObj.minute);
@@ -230,6 +251,9 @@ export default function RawFilesList({
         });
     };
 
+    /**
+     * Selects or clears every file belonging to a day.
+     */
     const handleSelectDayFiles = (dayObj, e) => {
         if (e && e.stopPropagation) e.stopPropagation();
         const indices = dayObj.fileIndices;
@@ -245,6 +269,9 @@ export default function RawFilesList({
         });
     };
 
+    /**
+     * Starts or toggles raw-file selection and tracks drag selection direction.
+     */
     const handleRawMouseDown = (idx, e) => {
         if (e.button !== 0) return;
         if (setIsDraggingRaw) setIsDraggingRaw(true);
@@ -267,6 +294,9 @@ export default function RawFilesList({
         });
     };
 
+    /**
+     * Extends the active drag selection across raw-file rows.
+     */
     const handleRawMouseEnter = (idx) => {
         if (!isDraggingRaw || dragRawStart === null || dragRawStart === undefined) return;
         const [low, high] = [Math.min(dragRawStart, idx), Math.max(dragRawStart, idx)];

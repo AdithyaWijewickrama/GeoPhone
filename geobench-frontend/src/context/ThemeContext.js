@@ -39,6 +39,9 @@ const ThemeContext = createContext({
     themes: THEME_OPTIONS
 });
 
+/**
+ * Loads and applies the saved theme and provides theme selection state/actions to descendants.
+ */
 export function ThemeProvider({ children }) {
     const [theme, setTheme] = useState(() => {
         const saved = localStorage.getItem('geophone_theme');
@@ -65,6 +68,9 @@ export function ThemeProvider({ children }) {
     );
 }
 
+/**
+ * Returns the theme context.
+ */
 export function useTheme() {
     return useContext(ThemeContext);
 }

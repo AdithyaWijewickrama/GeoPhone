@@ -1,5 +1,8 @@
 import React from 'react';
 
+/**
+ * Renders the triage page heading and its supplied controls/status.
+ */
 export default function TriageHeader({
     currentLocation,
     user,
@@ -11,7 +14,8 @@ export default function TriageHeader({
     onScanAll,
     scanning,
     fileCount,
-    onClear
+    onClear,
+    knownEventSelected = false
 }) {
     const userDisplayName = user
         ? (user.display_name || user.name || (user.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : user.username))
@@ -65,6 +69,7 @@ export default function TriageHeader({
                     <button
                         className="btn btn-warning fw-bold"
                         onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                        disabled={knownEventSelected}
                         title="Import CSV Files"
                     >
                         📁 Import Files
@@ -72,6 +77,7 @@ export default function TriageHeader({
                     <button
                         className="btn btn-outline-warning"
                         onClick={() => folderInputRef.current && folderInputRef.current.click()}
+                        disabled={knownEventSelected}
                         title="Import Entire Folder"
                     >
                         Folder
@@ -99,7 +105,7 @@ export default function TriageHeader({
                 <button
                     className="btn btn-outline-warning btn-sm fw-bold"
                     onClick={onScanAll}
-                    disabled={scanning || !fileCount}
+                    disabled={scanning || !fileCount || knownEventSelected}
                 >
                     {scanning ? 'Scanning...' : 'Scan All'}
                 </button>
@@ -107,6 +113,8 @@ export default function TriageHeader({
                 <button
                     className="btn btn-outline-danger btn-sm"
                     onClick={onClear}
+                    disabled={knownEventSelected}
+                    title={knownEventSelected ? 'Exit the known-event selection before clearing files' : 'Clear all loaded files'}
                 >
                     Clear
                 </button>

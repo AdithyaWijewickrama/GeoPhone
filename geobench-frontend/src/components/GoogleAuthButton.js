@@ -7,6 +7,9 @@ import { useAuth } from '../context/AuthContext';
 // a real login path would be an authentication bypass.
 const DEV_FALLBACK_ENABLED = process.env.NODE_ENV !== 'production';
 
+/**
+ * Renders the Google sign-in control and development fallback where enabled.
+ */
 export default function GoogleAuthButton({ text = 'Continue with Google', onSuccess, onError, compact = false }) {
     const { loginWithGoogle } = useAuth();
     const [loading, setLoading] = useState(false);
@@ -21,6 +24,9 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
     const isSignUp = text.toLowerCase().includes('sign up') || text.toLowerCase().includes('signup');
     const isContinue = text.toLowerCase().includes('continue');
 
+    /**
+     * Converts a Google identity response to local login data and calls the success/error callbacks.
+     */
     const handleGoogleResponse = useCallback(async (response) => {
         setLoading(true);
         try {
@@ -52,6 +58,9 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
         let intervalId = null;
         let isMounted = true;
 
+        /**
+         * Initializes Google's identity button when the Google Identity Services API and button element are ready.
+         */
         const initGis = () => {
             if (window.google?.accounts?.id && googleButtonRef.current) {
                 try {
@@ -95,6 +104,9 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
         };
     }, [googleClientId, isSignUp, isContinue, compact]);
 
+    /**
+     * Opens the development-only manual sign-in fallback and can display an error.
+     */
     const openDevFallback = (errorMsg = null) => {
         if (!DEV_FALLBACK_ENABLED) {
             // In production there is no safe fallback: surface a real error
@@ -106,6 +118,9 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
         setShowDevModal(true);
     };
 
+    /**
+     * Starts Google OAuth popup/token flow, retrieves user information, and submits it for local authentication.
+     */
     const handleCustomGoogleClick = async () => {
         // Use Google's native OAuth2 Token Client if available and client ID is present
         if (googleClientId && window.google?.accounts?.oauth2) {
@@ -177,6 +192,9 @@ export default function GoogleAuthButton({ text = 'Continue with Google', onSucc
         openDevFallback();
     };
 
+    /**
+     * Submits development fallback credentials.
+     */
     const handleDevSubmit = async (e) => {
         e.preventDefault();
         if (!DEV_FALLBACK_ENABLED) return; // extra guard, belt-and-braces

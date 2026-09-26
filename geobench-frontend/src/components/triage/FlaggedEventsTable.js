@@ -2,6 +2,9 @@ import React from 'react';
 import { formatDateTime, formatDuration } from '../../utils';
 import { LABEL_OPTIONS } from './constants';
 
+/**
+ * Displays detected events and their labels, with table selection and plot actions.
+ */
 export default function FlaggedEventsTable({
     currentEvents = [],
     chunk,
@@ -23,6 +26,9 @@ export default function FlaggedEventsTable({
     onResetWaveformFilter
 }) {
     // Table selection drag handlers
+    /**
+     * Starts/toggles event selection and supports shift-selection.
+     */
     const handleTableMouseDown = (idx, e) => {
         if (e.button !== 0) return;
         if (setIsDraggingTable) setIsDraggingTable(true);
@@ -45,6 +51,9 @@ export default function FlaggedEventsTable({
         });
     };
 
+    /**
+     * Extends an active drag selection across event rows.
+     */
     const handleTableMouseEnter = (idx) => {
         if (!isDraggingTable || dragTableStart === null || dragTableStart === undefined) return;
         const [low, high] = [Math.min(dragTableStart, idx), Math.max(dragTableStart, idx)];
@@ -61,6 +70,9 @@ export default function FlaggedEventsTable({
         });
     };
 
+    /**
+     * Selects all displayed events or clears the current selection.
+     */
     const handleSelectAll = () => {
         if (selectedTableEvents.size > 0) {
             setSelectedTableEvents(new Set());
@@ -69,6 +81,9 @@ export default function FlaggedEventsTable({
         }
     };
 
+    /**
+     * Requests a plot covering the selected events, or the full event range when none are selected.
+     */
     const handleViewPlotSelected = () => {
         if (!onViewPlot) return;
         if (selectedTableEvents.size > 0) {
@@ -148,7 +163,7 @@ export default function FlaggedEventsTable({
             </div>
 
             <div className="card-body p-0">
-                <div className="table-responsive" style={{ maxHeight: '280px', overflowY: 'auto' }}>
+                <div className="table-responsive" style={{ maxHeight: 'min(45vh, 560px)', overflowY: 'auto' }}>
                     <table className="table table-dark table-striped table-hover mb-0" style={{ fontSize: '0.82rem' }}>
                         <thead className="table-secondary sticky-top" style={{ zIndex: 1 }}>
                             <tr>
@@ -166,13 +181,14 @@ export default function FlaggedEventsTable({
                                 <th>Duration</th>
                                 <th>Score</th>
                                 <th>Label</th>
+                                <th>AI Suggestion</th>
                                 <th>Note</th>
                             </tr>
                         </thead>
                         <tbody>
                             {currentEvents.length === 0 ? (
                                 <tr>
-                                    <td colSpan="7" className="text-center p-4 text-muted">
+                                    <td colSpan="8" className="text-center p-4 text-muted">
                                         {isFilteredByWaveform ? (
                                             <>
                                                 No events in the selected waveform window.{' '}
@@ -193,7 +209,7 @@ export default function FlaggedEventsTable({
                             ) : (
                                 currentEvents.map((ev, idx) => {
                                     const isSelected = selectedTableEvents.has(idx);
-                                    const labelKey = `${chunk.key}_${ev.startTime}_${ev.endTime}`;
+                                    const labelKey = `${chunk.name}_${Math.round(ev.startTime)}_${Math.round(ev.endTime)}`;
                                     const saved = labels[labelKey] || {};
                                     const durationMs = ev.endTime - ev.startTime;
 
@@ -241,10 +257,26 @@ export default function FlaggedEventsTable({
                                                     }}
                                                 >
                                                     <option value="">(None)</option>
-                                                    {LABEL_OPTIONS.map(opt => (
-                                                        <option key={opt} value={opt}>{opt}</option>
+                                                    {LABEL_OPTIONS.filter(Boolean).map(option => (
+                                                        <option key={option} value={option}>{option}</option>
                                                     ))}
                                                 </select>
+                                            </td>
+                                            <td onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+                                                {ev.suggested_label ? (
+                                                    <div className="d-flex align-items-center gap-1 flex-wrap">
+                                                        <span className="small text-info" title={ev.classifier_run_id ? `Classifier run ${ev.classifier_run_id}` : undefined}>
+                                                            {ev.suggested_label}{Number.isFinite(ev.suggested_confidence) ? ` (${(ev.suggested_confidence * 100).toFixed(1)}%)` : ''}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-outline-info btn-sm py-0 px-1"
+                                                            style={{ fontSize: '0.7rem' }}
+                                                            onClick={() => onSaveLabel(chunk.key, chunk.name, ev, ev.suggested_label, saved.note || '')}
+                                                            title="Accept the model suggestion as this event's label"
+                                                        >Accept</button>
+                                                    </div>
+                                                ) : <span className="text-muted">—</span>}
                                             </td>
                                             <td onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
                                                 <input

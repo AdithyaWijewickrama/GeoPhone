@@ -1,8 +1,16 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import Chart from 'chart.js/auto';
+import { Tooltip } from 'chart.js';
 import { useTheme } from '../../context/ThemeContext';
 import { formatDateTime } from '../../utils';
 
+Tooltip.positioners.fixedY = function (_items, eventPosition) {
+    return { x: eventPosition.x, y: this.chart.chartArea.top + 8 };
+};
+
+/**
+ * Renders the waveform chart, event markers, zoom controls, and drag-selection behavior.
+ */
 export default function WaveformChart({
     chunk,
     threshold,
@@ -15,12 +23,22 @@ export default function WaveformChart({
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
 
-    const startTime = chunk?.startTime || 0;
-    const endTime = chunk?.endTime || 0;
-    const totalDuration = endTime && startTime ? Math.max(0.1, (endTime - startTime) / 1000) : 60;
+    const rawTimes = chunk?.raw?.times || [];
+    const startTime = rawTimes.length ? Number(rawTimes[0]) : (Number(chunk?.startTime) || 0);
+    const endTime = rawTimes.length ? Number(rawTimes[rawTimes.length - 1]) : (Number(chunk?.endTime) || 0);
+    const totalDuration = endTime > startTime ? Math.max(0.1, (endTime - startTime) / 1000) : 60;
+    const focusStart = Number(chunk?.focusStartTime);
+    const focusEnd = Number(chunk?.focusEndTime);
+    const hasFocusRange = Number.isFinite(focusStart) && Number.isFinite(focusEnd) && focusEnd > focusStart;
+    const initialViewRange = useMemo(() => hasFocusRange
+        ? {
+            start: Math.max(0, Math.min(totalDuration, (focusStart - startTime) / 1000)),
+            end: Math.max(0, Math.min(totalDuration, (focusEnd - startTime) / 1000))
+        }
+        : { start: 0, end: totalDuration }, [hasFocusRange, focusStart, focusEnd, startTime, totalDuration]);
 
     // Time frame / Zoom state in seconds [startSec, endSec]
-    const [viewRange, setViewRange] = useState({ start: 0, end: totalDuration });
+    const [viewRange, setViewRange] = useState(initialViewRange);
 
     // Drag-to-zoom box state
     const [isSelecting, setIsSelecting] = useState(false);
@@ -29,9 +47,8 @@ export default function WaveformChart({
 
     // Reset view range when chunk changes
     useEffect(() => {
-        const dur = chunk?.endTime && chunk?.startTime ? Math.max(0.1, (chunk.endTime - chunk.startTime) / 1000) : 60;
-        setViewRange({ start: 0, end: dur });
-    }, [chunk?.key, chunk?.startTime, chunk?.endTime]);
+        setViewRange(initialViewRange);
+    }, [chunk?.key, startTime, endTime, totalDuration, focusStart, focusEnd, initialViewRange]);
 
     const activeStart = Math.max(0, Math.min(viewRange.start, totalDuration - 0.05));
     const activeEnd = Math.min(totalDuration, Math.max(viewRange.end ?? totalDuration, activeStart + 0.05));
@@ -53,10 +70,16 @@ export default function WaveformChart({
     }, [activeStart, activeEnd, activeDuration, totalDuration, startTime, onSelectionChange]);
 
     // Zoom action helpers
+    /**
+     * Restores the chart's full time range.
+     */
     const handleResetZoom = useCallback(() => {
         setViewRange({ start: 0, end: totalDuration });
     }, [totalDuration]);
 
+    /**
+     * Narrows the visible time range around its midpoint.
+     */
     const handleZoomIn = () => {
         const center = (activeStart + activeEnd) / 2;
         const halfSpan = (activeDuration / 2) * 0.65;
@@ -66,6 +89,9 @@ export default function WaveformChart({
         });
     };
 
+    /**
+     * Widens the visible time range around its midpoint.
+     */
     const handleZoomOut = () => {
         const center = (activeStart + activeEnd) / 2;
         const halfSpan = (activeDuration / 2) * 1.5;
@@ -75,6 +101,9 @@ export default function WaveformChart({
         });
     };
 
+    /**
+     * Sets a preset visible time span around the chart midpoint.
+     */
     const handleSelectPreset = (seconds) => {
         const span = Math.min(totalDuration, seconds);
         const center = (activeStart + activeEnd) / 2;
@@ -90,6 +119,9 @@ export default function WaveformChart({
         setViewRange({ start: s, end: e });
     };
 
+    /**
+     * Shifts the visible range by a fraction of its current duration.
+     */
     const handlePan = (fraction) => {
         const shift = activeDuration * fraction;
         let s = activeStart + shift;
@@ -105,26 +137,40 @@ export default function WaveformChart({
     };
 
     // Canvas Mouse / Drag selection for interactive time frame zoom
+    /**
+     * Starts waveform drag selection.
+     */
     const handleMouseDown = (e) => {
         if (e.button !== 0 || !chartRef.current) return;
         const rect = canvasRef.current.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
+        const { left, right } = chartRef.current.chartArea;
+        if (mouseX < left || mouseX > right) return;
         dragStartRef.current = { pixelX: mouseX, clientX: e.clientX };
         setIsSelecting(true);
         setSelectionBox(null);
     };
 
+    /**
+     * Updates the active drag-selection endpoint.
+     */
     const handleMouseMove = (e) => {
         if (!isSelecting || !dragStartRef.current || !canvasRef.current) return;
         const rect = canvasRef.current.getBoundingClientRect();
-        const currentX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+        const chartArea = chartRef.current?.chartArea;
+        if (!chartArea) return;
+        const currentX = Math.max(chartArea.left, Math.min(chartArea.right, e.clientX - rect.left));
         const startX = dragStartRef.current.pixelX;
         const left = Math.min(startX, currentX);
         const width = Math.abs(currentX - startX);
 
-        setSelectionBox({ left, width });
+        const containerRect = containerRef.current.getBoundingClientRect();
+        setSelectionBox({ left: rect.left - containerRect.left + left, width });
     };
 
+    /**
+     * Converts a sufficiently large chart drag into a selected time range.
+     */
     const handleMouseUp = (e) => {
         if (!isSelecting || !dragStartRef.current || !chartRef.current) {
             setIsSelecting(false);
@@ -134,15 +180,20 @@ export default function WaveformChart({
 
         const chart = chartRef.current;
         const rect = canvasRef.current.getBoundingClientRect();
-        const currentPixelX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+        const { left, right } = chart.chartArea;
+        const currentPixelX = Math.max(left, Math.min(right, e.clientX - rect.left));
         const startPixelX = dragStartRef.current.pixelX;
         const distance = Math.abs(currentPixelX - startPixelX);
 
         // If drag was substantial (> 10 pixels), zoom into selected region
         if (distance > 10 && chart.scales.x) {
             const xScale = chart.scales.x;
-            const t1 = xScale.getValueForPixel(Math.min(startPixelX, currentPixelX));
-            const t2 = xScale.getValueForPixel(Math.max(startPixelX, currentPixelX));
+            const leftTime = xScale.getValueForPixel(left);
+            const rightTime = xScale.getValueForPixel(right);
+            const startRatio = (Math.min(startPixelX, currentPixelX) - left) / (right - left);
+            const endRatio = (Math.max(startPixelX, currentPixelX) - left) / (right - left);
+            const t1 = leftTime + (rightTime - leftTime) * startRatio;
+            const t2 = leftTime + (rightTime - leftTime) * endRatio;
 
             if (t1 !== undefined && t2 !== undefined && t2 - t1 >= 0.05) {
                 setViewRange({
@@ -164,22 +215,31 @@ export default function WaveformChart({
 
         const handleWheel = (e) => {
             e.preventDefault();
-            const zoomFactor = e.deltaY < 0 ? 0.8 : 1.25;
-            const center = (activeStart + activeEnd) / 2;
-            const newHalf = (activeDuration * zoomFactor) / 2;
+            const chart = chartRef.current;
+            const scale = chart?.scales?.x;
+            if (!chart || !scale || !chart.chartArea) return;
 
-            if (newHalf >= 0.025 && newHalf <= totalDuration) {
-                let s = center - newHalf;
-                let endVal = center + newHalf;
-                if (s < 0) {
-                    s = 0;
-                    endVal = Math.min(totalDuration, newHalf * 2);
-                } else if (endVal > totalDuration) {
-                    endVal = totalDuration;
-                    s = Math.max(0, totalDuration - newHalf * 2);
-                }
-                setViewRange({ start: s, end: endVal });
+            const canvasRect = chart.canvas.getBoundingClientRect();
+            const pointerX = e.clientX - canvasRect.left;
+            if (pointerX < chart.chartArea.left || pointerX > chart.chartArea.right) return;
+
+            const pointerTime = scale.getValueForPixel(pointerX);
+            if (!Number.isFinite(pointerTime)) return;
+            const anchor = Math.max(activeStart, Math.min(activeEnd, pointerTime));
+            const anchorRatio = (anchor - activeStart) / activeDuration;
+            const zoomFactor = e.deltaY < 0 ? 0.8 : 1.25;
+            const newDuration = Math.max(0.05, Math.min(totalDuration, activeDuration * zoomFactor));
+            let start = anchor - anchorRatio * newDuration;
+            let end = start + newDuration;
+
+            if (start < 0) {
+                start = 0;
+                end = newDuration;
+            } else if (end > totalDuration) {
+                end = totalDuration;
+                start = totalDuration - newDuration;
             }
+            setViewRange({ start, end });
         };
 
         container.addEventListener('wheel', handleWheel, { passive: false });
@@ -218,14 +278,32 @@ export default function WaveformChart({
             }
         }
 
-        const filteredScores = [];
-        for (let i = 0; i < rawBlocks.length; i++) {
-            const b = rawBlocks[i];
-            const tSec = (b.time - startTimestamp) / 1000;
-            if (tSec >= activeStart - 1.0 && tSec <= activeEnd + 1.0) {
-                filteredScores.push({ x: tSec, y: b.score });
+        // Give the score series the same x coordinates and point count as the
+        // waveform. Chart.js index-mode tooltips can then report both values
+        // at one stable timestamp instead of alternating between sparse scores
+        // and dense waveform samples.
+        const scoreTimeline = rawBlocks
+            .map(block => ({
+                x: (Number(block.time) - startTimestamp) / 1000,
+                y: Number(block.score)
+            }))
+            .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y))
+            .sort((a, b) => a.x - b.x);
+        let scoreIndex = 0;
+        const filteredScores = filteredWaveform.map(({ x }) => {
+            if (!scoreTimeline.length) return { x, y: null };
+            while (scoreIndex < scoreTimeline.length - 1 && scoreTimeline[scoreIndex + 1].x < x) {
+                scoreIndex += 1;
             }
-        }
+            const left = scoreTimeline[scoreIndex];
+            const right = scoreTimeline[scoreIndex + 1];
+            let y = left.y;
+            if (right && x > left.x && right.x > left.x) {
+                const fraction = Math.min(1, (x - left.x) / (right.x - left.x));
+                y += (right.y - left.y) * fraction;
+            }
+            return { x, y };
+        });
 
         // Theme-aware colors
         const isDark = theme !== 'light';
@@ -240,12 +318,12 @@ export default function WaveformChart({
             data: {
                 datasets: [
                     {
-                        label: 'Signal (mV)',
+                        label: 'Voltage (mV)',
                         data: filteredWaveform,
                         borderColor: waveColor,
                         borderWidth: 1.2,
                         pointRadius: 0,
-                        tension: 0.1,
+                        tension: 0.16,
                         yAxisID: 'y',
                         order: 2
                     },
@@ -257,7 +335,7 @@ export default function WaveformChart({
                         borderWidth: 1.5,
                         pointRadius: 1.5,
                         fill: true,
-                        tension: 0.2,
+                        tension: 0.25,
                         yAxisID: 'y1',
                         order: 1
                     }
@@ -269,6 +347,7 @@ export default function WaveformChart({
                 animation: false,
                 interaction: {
                     mode: 'index',
+                    axis: 'x',
                     intersect: false
                 },
                 scales: {
@@ -289,7 +368,7 @@ export default function WaveformChart({
                     },
                     y: {
                         position: 'left',
-                        title: { display: true, text: 'Signal (mV)', color: waveColor },
+                        title: { display: true, text: 'Voltage (mV)', color: waveColor },
                         ticks: { color: axisColor },
                         grid: { color: gridColor }
                     },
@@ -303,8 +382,18 @@ export default function WaveformChart({
                 plugins: {
                     legend: { display: true, labels: { color: legendColor } },
                     tooltip: {
+                        position: 'fixedY',
+                        mode: 'index',
+                        axis: 'x',
+                        intersect: false,
                         callbacks: {
-                            title: (items) => items.length ? `Time: ${Number(items[0].parsed.x).toFixed(2)}s` : ''
+                            title: (items) => items.length ? `Time: ${Number(items[0].parsed.x).toFixed(2)}s` : '',
+                            label: (item) => {
+                                const value = item.parsed.y;
+                                return Number.isFinite(value)
+                                    ? `${item.dataset.label}: ${value.toFixed(item.dataset.yAxisID === 'y' ? 3 : 2)}`
+                                    : `${item.dataset.label}: --`;
+                            }
                         }
                     }
                 }
@@ -314,6 +403,9 @@ export default function WaveformChart({
         return () => chartRef.current?.destroy();
     }, [chunk, threshold, theme, activeStart, activeEnd, activeDuration, startTime, totalDuration]);
 
+    /**
+     * Invokes the supplied plot-view callback for the relevant event interval.
+     */
     const handleTriggerViewPlot = () => {
         if (!onViewPlot) return;
         const startMs = startTime + activeStart * 1000;
@@ -345,9 +437,9 @@ export default function WaveformChart({
                             title="Start and End timestamp of the analyzed dataset"
                         >
                             <span className="text-info">📅 Analyzed Range:</span>
-                            <span className="text-warning fw-semibold">{formatDateTime(startTime)}</span>
+                            <span className="text-warning fw-semibold">{formatDateTime(startTime + activeStart * 1000)}</span>
                             <span className="text-muted">–</span>
-                            <span className="text-warning fw-semibold">{formatDateTime(endTime)}</span>
+                            <span className="text-warning fw-semibold">{formatDateTime(startTime + activeEnd * 1000)}</span>
                         </div>
                     )}
 
@@ -504,7 +596,7 @@ export default function WaveformChart({
                     <div
                         className="position-absolute bg-info bg-opacity-25 border-start border-end border-info"
                         style={{
-                            left: `${selectionBox.left + 8}px`,
+                            left: `${selectionBox.left}px`,
                             width: `${selectionBox.width}px`,
                             top: '8px',
                             bottom: '8px',

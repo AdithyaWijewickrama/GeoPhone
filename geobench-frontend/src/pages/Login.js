@@ -3,6 +3,9 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import logo from '../logo.svg'
 
+/**
+ * Renders the login page and redirects after a successful sign-in.
+ */
 export default function Login() {
     const navigate = useNavigate();
     const location = useLocation();
@@ -14,6 +17,9 @@ export default function Login() {
 
     const from = location.state?.from?.pathname || '/triage';
 
+    /**
+     * Validates/submits login form data and reports authentication errors.
+     */
     const handleLogin = async (e) => {
         e.preventDefault();
         setError(null);

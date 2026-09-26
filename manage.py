@@ -4,7 +4,7 @@ import sys
 
 
 def main():
-    """Run administrative tasks."""
+    """Load the project environment and run the requested Django management command."""
     from dotenv import load_dotenv
     load_dotenv()  # Load environment variables from .env before Django settings are read
 
@@ -18,6 +18,7 @@ def main():
             "forget to activate a virtual environment?"
         ) from exc
     execute_from_command_line(sys.argv)
+
 
 
 if __name__ == '__main__':

@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+/**
+ * Renders the registration page and redirects after successful account creation.
+ */
 export default function Signup() {
     const navigate = useNavigate();
     const location = useLocation();
@@ -19,10 +22,16 @@ export default function Signup() {
 
     const from = location.state?.from?.pathname || '/triage';
 
+    /**
+     * Updates the matching signup form field.
+     */
     const handleChange = (e) => {
         setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
     };
 
+    /**
+     * Validates signup fields and submits registration data.
+     */
     const handleSignup = async (e) => {
         e.preventDefault();
         setError(null);
