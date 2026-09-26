@@ -115,6 +115,8 @@ export default function Forecasting() {
     const [peakScore, setPeakScore] = useState('');
     const [neighborsCount, setNeighborsCount] = useState(5);
     const knnCanvasRef = useRef(null);
+    const knnChartRef = useRef(null);
+    const knnFullBoundsRef = useRef(null);
 
     useEffect(() => {
         fetch(`${API_BASE_URL}/api/model-metadata/`).then(res => res.json()).then(setMetadata)
@@ -176,8 +178,60 @@ export default function Forecasting() {
             Number(duration),
             Number(peakScore)
         );
-        return () => chart?.destroy();
+        knnChartRef.current = chart;
+        knnFullBoundsRef.current = chart ? {
+            x: { min: chart.scales.x.min, max: chart.scales.x.max },
+            y: { min: chart.scales.y.min, max: chart.scales.y.max }
+        } : null;
+        return () => {
+            chart?.destroy();
+            if (knnChartRef.current === chart) knnChartRef.current = null;
+        };
     }, [trainingSamples, prediction, duration, peakScore]);
+
+    const zoomKnnChart = (factor, anchorX, anchorY) => {
+        const chart = knnChartRef.current;
+        if (!chart) return;
+
+        ['x', 'y'].forEach(axis => {
+            const scale = chart.scales[axis];
+            const anchor = axis === 'x' ? anchorX : anchorY;
+            const center = Number.isFinite(anchor) ? anchor : (scale.min + scale.max) / 2;
+            const span = (scale.max - scale.min) * factor;
+            const ratio = (center - scale.min) / (scale.max - scale.min);
+            chart.options.scales[axis].min = center - ratio * span;
+            chart.options.scales[axis].max = center + (1 - ratio) * span;
+        });
+        chart.update('none');
+    };
+
+    const handleKnnWheel = event => {
+        const chart = knnChartRef.current;
+        if (!chart) return;
+        const rect = chart.canvas.getBoundingClientRect();
+        const pixelX = event.clientX - rect.left;
+        const pixelY = event.clientY - rect.top;
+        const { left, right, top, bottom } = chart.chartArea;
+        if (pixelX < left || pixelX > right || pixelY < top || pixelY > bottom) return;
+
+        event.preventDefault();
+        zoomKnnChart(
+            event.deltaY < 0 ? 0.8 : 1.25,
+            chart.scales.x.getValueForPixel(pixelX),
+            chart.scales.y.getValueForPixel(pixelY)
+        );
+    };
+
+    const resetKnnZoom = () => {
+        const chart = knnChartRef.current;
+        const bounds = knnFullBoundsRef.current;
+        if (!chart || !bounds) return;
+        ['x', 'y'].forEach(axis => {
+            chart.options.scales[axis].min = bounds[axis].min;
+            chart.options.scales[axis].max = bounds[axis].max;
+        });
+        chart.update('none');
+    };
 
     return (
         <div>
@@ -265,8 +319,18 @@ export default function Forecasting() {
                                     <span className="ms-2">({(prediction.confidence * 100).toFixed(0)}% of {prediction.k} nearest neighbors)</span>
                                 </div>
                             )}
-                            <div style={{ height: '400px' }}>
+                            <div
+                                style={{ height: '400px' }}
+                                onWheel={handleKnnWheel}
+                                title="Scroll over the chart to zoom in or out around the pointer."
+                            >
                                 <canvas ref={knnCanvasRef} aria-label="KNN training samples and event prediction by duration and peak score" role="img" />
+                            </div>
+                            <div className="d-flex justify-content-end align-items-center gap-2 mt-2">
+                                <span className="text-muted small me-auto">Scroll over the chart to zoom around the pointer.</span>
+                                <button type="button" className="btn btn-sm btn-outline-light" onClick={() => zoomKnnChart(0.8)} aria-label="Zoom in on KNN chart">Zoom in</button>
+                                <button type="button" className="btn btn-sm btn-outline-light" onClick={() => zoomKnnChart(1.25)} aria-label="Zoom out on KNN chart">Zoom out</button>
+                                <button type="button" className="btn btn-sm btn-outline-info" onClick={resetKnnZoom}>Reset zoom</button>
                             </div>
 
                             <div className="alert bg-dark border-secondary mt-3 mb-0 text-muted small" style={{ borderLeft: '3px solid #cbd5e1' }}>

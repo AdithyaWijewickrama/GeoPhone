@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 
 import numpy as np
 from django.conf import settings
-from django.db.models import Count
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import precision_recall_fscore_support, accuracy_score
 from sklearn.model_selection import GroupShuffleSplit
